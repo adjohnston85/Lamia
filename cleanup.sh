@@ -1,0 +1,16 @@
+#!/bin/bash
+
+rm *.fq.gz
+rm $1_s.b*
+rm $1.bam
+mkdir stats
+mv $1*txt ./stats/
+mkdir ./stats/methyldackyl
+mv $1*svg ./stats/methyldackyl/
+mkdir ./stats/trim_galore
+mv ./stats/*trimming_report* ./stats/trim_galore/
+mkdir ./stats/picard
+mv $1*metrics.test ./stats/picard/
+mkdir QC
+mv *fastqc* ./QC/
+echo 'Cleanup finished'
