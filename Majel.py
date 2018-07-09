@@ -30,6 +30,8 @@ parser.add_argument("--aligner_threads", help="Speed up alignment by increasing 
 parser.add_argument("--pbat", help="True if library method uses post-bis adapter tagging (e.g. swift)",
                     default=False)
 parser.add_argument("--file_type", help="Starting file type (sra or fastq)")
+parser.add_argument("--isPairedEnd",help = "IS the libarary paired end (defaults to True)",
+                    default=True)
 options = parser.parse_args()
 
 # standard python logger which can be synchronised across concurrent Ruffus tasks
@@ -105,11 +107,20 @@ def genome_select():
     logger.log(MESSAGE, timestamp("Genome Path - '%s'" % genome_file))
     return genome_file
 
+def choose_alignCommand(target_genome, nThreads, fq_files, base_name, isPaired):
+    if isPaired == "True":
+        aligners = {'bismark':"/usr/local/bin/bismark-0.18.1/bismark --genome %s --parallel %s -1 %s -2 %s" % tuple([target_genome] + [nThreads] + list(fq_files[0])),
+                    'bwameth':' python /home/loc100/miniconda3/pkgs/bwameth-0.2.0-py36_0/bin/bwameth.py --reference %s --threads %s %s %s > %s.sam' % tuple([target_genome] + [nThreads] + list(fq_files[0]) + [base_name]),
+                    'walt':'/usr/local/bin/walt/walt -t %s -i %s -1 %s -2 %s -o %s.sam' % tuple([nThreads] + [target_genome] + list(fq_files[0]) + [base_name])}
+    else:
+        aligners = {'bismark':"/usr/local/bin/bismark-0.18.1/bismark --genome %s --parallel %s --se %s" % tuple([target_genome] + [nThreads] + list(fq_files[0])),
+                    'bwameth':' python /home/loc100/miniconda3/pkgs/bwameth-0.2.0-py36_0/bin/bwameth.py --reference %s --threads %s %s > %s.sam' % tuple([target_genome] + [nThreads] + list(fq_files[0]) + [base_name]),
+                    'walt':'/usr/local/bin/walt/walt -t %s -i %s -r %s -o %s.sam' % tuple([nThreads] + [target_genome] + list(fq_files[0]) + [base_name])}
+    return aligners
+    
 
-def aligner_select(target_genome, nThreads, fq_files, base_name):
-    aligners={'bismark':"/usr/local/bin/bismark-0.18.1/bismark --genome %s --parallel %s -1 %s -2 %s" % tuple([target_genome] + [nThreads] + list(fq_files[0])),
-              'bwameth':' python /home/loc100/miniconda3/pkgs/bwameth-0.2.0-py36_0/bin/bwameth.py --reference %s --threads %s %s %s > %s.sam' % tuple([target_genome] + [nThreads] + list(fq_files[0]) + [base_name]),
-              'walt':'/usr/local/bin/walt/walt -t %s -i %s -1 %s -2 %s -o %s.sam' % tuple([nThreads] + [target_genome] + list(fq_files[0]) + [base_name])}
+def aligner_select(target_genome, nThreads, fq_files, base_name, pairedReads):
+    aligners= choose_alignCommand(target_genome, nThreads, fq_files, base_name, pairedReads)
     align_cmd = aligners.get(options.aligner)
     if options.pbat == 'True' and options.aligner != 'bwameth':
         align_cmd = align_cmd + ' ' + getPBAT()
@@ -128,9 +139,14 @@ def bamMerge(bam_files, file_prefix):
 
 
 def bam_name_fix(base_name):
-    aligners={'bismark':'mv %s_r1_bismark_bt2_pe.bam %s.bam' % (base_name,base_name),
-              'bwameth':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name),
-              'walt':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name)}
+    if optoins.isPairedEnd == "True":
+        aligners={'bismark':'mv %s_r1_bismark_bt2_pe.bam %s.bam' % (base_name,base_name),
+                  'bwameth':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name),
+                  'walt':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name)}
+    else:
+        aligners={'bismark':'mv %s_r1_bismark_bt2.bam %s.bam' % (base_name,base_name),
+                  'bwameth':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name),
+                  'walt':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name)}
     fix_cmd = aligners.get(options.aligner)
     logger.log(MESSAGE,  timestamp("Correct filename - '%s'" % fix_cmd))
     return fix_cmd
@@ -171,6 +187,7 @@ def getFastqPairs():
             (r2, options.sampleID + '_r2.fastq.gz')]
 
 
+
 # The actual pipeline
 sraFiles = []
 for file in os.listdir(options.data_dir):
@@ -199,7 +216,7 @@ def type_select():
 type_text = type_select() + ': ' + str(infiles)
 logger.log(MESSAGE, timestamp(type_text))
 @active_if(run_if_sra)
-@transform(sraFiles, formatter(".*.sra$"), [os.getcwd() + "/{basename[0]}_1.fastq.gz", os.getcwd() + "/{basename[0]}_2.fastq.gz"], logger, logger_mutex)
+@transform(sraFiles, formatter(".*.sra$"), [os.getcwd() + "/{basename[0]}_1.fastq.gz", os.getcwd() + "/{basename[0]}_2.fastq.gz"] if options.isPairedEnd == "True" else [os.getcwd() + "/{basename[0]}_1.fastq.gz"], logger, logger_mutex)
 #extract from sra
 def sraToFastq(input_file, output_files, logger, logger_mutex):
     cmd = ("/usr/local/bin/sratoolkit/fastq-dump --split-files --gzip %s" % (input_file))
@@ -210,25 +227,29 @@ def sraToFastq(input_file, output_files, logger, logger_mutex):
 
 
 @active_if(run_if_sra)       
-@collate(sraToFastq, regex("_[12].fastq.gz"), ["_1_val_1.fq.gz","_2_val_2.fq.gz"], logger, logger_mutex)
+@collate(sraToFastq, regex("_[12].fastq.gz"), ["_1_val_1.fq.gz","_2_val_2.fq.gz"] if options.isPairedEnd == "True" else ["_1_trimmed.fq.gz"], logger, logger_mutex)
 
 def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
-    if len(input_files[0]) < 2:
-        raise Exception("One of read pairs %s missing" % (input_files[0]))
-    if len(input_files[0]) == 2:
-        cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple(input_files[0]))
-        exitcode, out, err = execute_cmd(cmd)
-    if len(input_files[0]) > 2 and (len(input_files[0])/2).is_integer() == False:
-        raise Exception("File missing in %s" % (input_files))
-    if len(input_files[0]) > 2 and (len(input_files[0])/2).is_integer() == True:
-        input_files.sort()
-        target_files_1 = ' '.join(input_files[0][::2])
-        target_files_2 = ' '.join(input_files[0][1::2])
-        logger.log(MESSAGE, timestamp(target_files_1))
-        logger.log(MESSAGE, timestamp(target_files_2))
-        for r1, r2 in zip(target_files_1, target_files_2):
-            cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(r1, r2))
+    if options.isPairedEnd == "True":
+        if len(input_files[0]) < 2:
+            raise Exception("One of read pairs %s missing" % (input_files[0]))
+        if len(input_files[0]) == 2:
+            cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple(input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
+        if len(input_files[0]) > 2 and (len(input_files[0])/2).is_integer() == False:
+            raise Exception("File missing in %s" % (input_files))
+        if len(input_files[0]) > 2 and (len(input_files[0])/2).is_integer() == True:
+            input_files.sort()
+            target_files_1 = ' '.join(input_files[0][::2])
+            target_files_2 = ' '.join(input_files[0][1::2])
+            logger.log(MESSAGE, timestamp(target_files_1))
+            logger.log(MESSAGE, timestamp(target_files_2))
+            for r1, r2 in zip(target_files_1, target_files_2):
+                cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(r1, r2))
+                exitcode, out, err = execute_cmd(cmd)
+    else:
+        cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip %s' % tuple(input_files[0]))
+        exitcode, out, err = execute_cmd(cmd)
 
     with logger_mutex:
         logger.log(MESSAGE,  timestamp("trim_galore done"))
@@ -258,14 +279,15 @@ def trim_fastq2(input_files, output_paired_files, logger, logger_mutex):
         logger.log(MESSAGE,  timestamp("trim_galore done"))
 
      
-@collate([trim_fastq, trim_fastq2], formatter("R*[12].*_val_[12].fq.gz$"), ["{path[0]}/" + options.sampleID + "_r1.fq.gz", "{path[0]}/" + options.sampleID + "_r2.fq.gz"], logger, logger_mutex)
+@collate([trim_fastq, trim_fastq2], formatter("R*[12].*_(?:val_[12]|trimmed).fq.gz$"), ["{path[0]}/" + options.sampleID + "_r1.fq.gz", "{path[0]}/" + options.sampleID + "_r2.fq.gz"] if options.isPairedEnd == "True" else ["{path[0]}/" + options.sampleID + "_r1.fq.gz"], logger, logger_mutex)
 
 def merge_fastq(input_files, output_files, logger, logger_mutex):
     if len(input_files) == 1:
+        input_flat = [item for sublist in input_files for item in sublist]
         logger.log(MESSAGE, timestamp('Only 1 fastq pair, no need to merge. Renaming to keep pipline flowing'))
-        os.system('mv %s %s' % [input_files[0], output_files[0]])
-        os.system('mv %s %s' % [input_files[1], output_files[1]])
-    else:
+        os.system('mv %s %s' % (input_flat[0], output_files[0]))
+        os.system('mv %s %s' % (input_flat[1], output_files[1]))
+    elif options.isPairedEnd == "True":
         r1 = []
         r2 = []
         for targets in input_files:
@@ -278,7 +300,12 @@ def merge_fastq(input_files, output_files, logger, logger_mutex):
         logger.log(MESSAGE, timestamp('merging %s into %s' % (' '.join(r2), output_files[1])))
         cmd_next = 'cat %s > %s' % (' '.join(r2), output_files[1])
         os.system(cmd_next)
-    
+    else:
+        input_flat = [item for sublist in input_files for item in sublist]
+        logger.log(MESSAGE, timestamp('merging %s into %s' % (' '.join(input_flat), output_files[0])))
+        cmd = 'cat %s > %s' % (' '.join(input_flat), output_files[0])
+        os.system(cmd)
+        
     with logger_mutex:
          logger.log(MESSAGE,  timestamp("merge_fastq done"))
     
@@ -291,7 +318,7 @@ def align_fastq(input_files, output_file, logger, logger_mutex):
     if options.aligner == 'walt':
         cmd = align_walt(input_files, base_name, genome_file)
     else:
-        cmd=aligner_select(genome_file, options.aligner_threads, input_files, base_name)
+        cmd=aligner_select(genome_file, options.aligner_threads, input_files, base_name, options.isPairedEnd)
     logger.log(MESSAGE, timestamp(cmd))
     #bwameth needs data piped to file/samtools. Can't use execute_cmd
     os.system(cmd)
