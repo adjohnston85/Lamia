@@ -31,7 +31,7 @@ parser.add_argument("--pbat", help="True if library method uses post-bis adapter
                     default=False)
 parser.add_argument("--file_type", help="Starting file type (sra or fastq)")
 parser.add_argument("--isPairedEnd",help = "IS the libarary paired end (defaults to True)",
-                    default=True)
+                    default="True")
 options = parser.parse_args()
 
 # standard python logger which can be synchronised across concurrent Ruffus tasks
@@ -139,7 +139,7 @@ def bamMerge(bam_files, file_prefix):
 
 
 def bam_name_fix(base_name):
-    if optoins.isPairedEnd == "True":
+    if options.isPairedEnd == "True":
         aligners={'bismark':'mv %s_r1_bismark_bt2_pe.bam %s.bam' % (base_name,base_name),
                   'bwameth':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name),
                   'walt':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name)}
@@ -341,7 +341,8 @@ def sort_bam(input_file, output_file, logger, logger_mutex):
 #@transform(compress_sam, regex(r".bam"), "_d.bam")
 @transform(sort_bam, formatter(".*_s.bam$"), ['{basename[0]}d.bam','{basename[0]}d_flagstat.txt'], logger, logger_mutex)
 def mDuplicates(input_file, output_file, logger, logger_mutex):
-    cmd="java -Xms8g -jar /usr/local/bin/picard/build/libs/picard.jar MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=false TAGGING_POLICY=All CREATE_INDEX=true" % (input_file[0], output_file[0], options.sampleID)
+    os.mkdir("./tmp")
+    cmd="java -Xms8g -jar /usr/local/bin/picard/build/libs/picard.jar MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=false TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % (input_file[0], output_file[0], options.sampleID)
     logger.log(MESSAGE,  timestamp(cmd))
     os.system(cmd)
     if options.aligner == 'bismark':
