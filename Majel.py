@@ -10,6 +10,25 @@ import shlex
 import re
 import pandas as pd
 
+#define all paths to sofware (Popen will not use $PATH)
+def getFunctionPath(target):
+    if re.sub(".*\\.","",target) == "jar":
+        proc = Popen(shlex.split('locate %s' % target), stdout = PIPE, stderr = PIPE)
+        functionPath = re.sub("\\n", "",proc.communicate()[0].decode("utf-8"))
+    else:
+        proc = Popen(shlex.split('which %s' % target), stdout = PIPE, stderr = PIPE)
+        functionPath = re.sub("\\n", "",proc.communicate()[0].decode("utf-8"))
+    return functionPath
+
+
+#softwarePaths = {'bismark': getFunctionPath('bismark'),
+#                 'samtools': getFunctionPath('samtools'),
+#                 'java': getFunctionPath('java'),
+#                 'picard': getFunctionPath('picard.jar'),
+#                 'trim_galore': getFunctionPath('trim_galore'),
+#                 'fastq-dump': getFunctionPath('fastq-dump')}
+
+
 # get important directory locations
 pipeline_path = os.path.dirname(os.path.abspath(__file__))
 genomes_path = pipeline_path + '/Genomes'
@@ -18,39 +37,39 @@ genomes_path = pipeline_path + '/Genomes'
 parser = cmdline.get_argparse(description='test.py - Automated WGBS processing pipeline')
 
 # Add command line arguments
-parser.add_argument("--aligner", help="Select prefered aligner [bismark, bwameth]. Defaults to bismark",
-                    default="bismark")
+#removing multiple alingers for the time being
+#parser.add_argument("--aligner", help="Select prefered aligner [bismark, bwameth]. Defaults to bismark",
+#                    default="bismark")
 parser.add_argument("--genome", help="Genome reads are aligned too. Check genome files for your prefered aligner are in " + genomes_path + ". Defaults to hg38 (hg38)",
                     default="hg38")
 parser.add_argument("--data_dir", help="Directory for fastq files")
 parser.add_argument("--sampleID", help="Sample name. Used for directory name and output file names")
-parser.add_argument("--project", help="Project name. Used for parent directory. Directory of this name will be created if none already exists")
-parser.add_argument("--aligner_threads", help="Speed up alignment by increasing number of threads. Values depends on the aligner. Defaults to 1",
-                    default=1)
-parser.add_argument("--pbat", help="True if library method uses post-bis adapter tagging (e.g. swift)",
+parser.add_argument("--aligner_threads", help="Speed up alignment by increasing number of threads. Values depends on the aligner. Defaults to 5",
+                    default=5)
+parser.add_argument("--pbat", help="True if library method uses post-bis adapter tagging",
                     default=False)
 parser.add_argument("--file_type", help="Starting file type (sra or fastq)")
 parser.add_argument("--isPairedEnd",help = "IS the libarary paired end (defaults to True)",
                     default="True")
+parser.add_argument("--bowenPath",help = "path to bowen volume (defaults to HPC path '/OSM/CBR/HB_FSP_TBI/work/'",
+                    default="/OSM/CBR/HB_FSP_TBI/work/")
 options = parser.parse_args()
 
 # standard python logger which can be synchronised across concurrent Ruffus tasks
 logger, logger_mutex = cmdline.setup_logging(__name__, options.log_file, options.verbose)
 options.logger = logger
-
+#fixing aligner to bismark but keeping old code for when walt is added
+options.aligner = "bismark"
 # Utility functions
-
-
 class JobFailException(Exception):  # For when a cluster job fails
     def __init__(self, value):
         self.parameter = value
 
     def __str__(self):
         return repr(self.parameter)
+    
 
 # Prepend a timestamp to a debug message
-
-
 def timestamp(msg):
     return time.strftime("%c") + ": " + msg
 
@@ -60,7 +79,7 @@ def make_target_dir(path):
         pass
     else:
         os.mkdir(path)
-
+        
 
 def execute_cmd(cmd, cwd=None):
     """
@@ -86,20 +105,8 @@ def check_expected_output(files, taskname):
             raise JobFailException('%s: Expected output %s is not present' % (taskname, f))
 
 
-def create_output_tree():
-    make_target_dir(options.project)
-    make_target_dir(options.project+'/'+options.sampleID)
-    make_target_dir(options.project+'/'+options.sampleID+'/'+options.aligner)
-    if options.call_meth == True:
-        make_target_dir(options.project+'/'+options.sampleID+'/'+options.meth_caller)
-    if options.call_DMR == True:
-        make_target_dir(options.project+'/'+options.sampleID+'/'+options.DMR_caller)
-
-
 def genome_select():
-    genomes={'hg19':'/media/bowen_work/pipeline_data/Genomes/hg19/', 'hg38':'/media/bowen_work/pipeline_data/Genomes/hg38/'}
-    if options.aligner == 'bwameth':
-        genome_file = "%s%s.fa" % (genomes.get(options.genome),options.genome)
+    genomes={'hg19':'%spipeline_data/Genomes/hg19/' % options.bowenPath, 'hg38':'%spipeline_data/Genomes/hg38/' % options.bowenPath}
     if options.aligner == 'bismark':
         genome_file = genomes.get(options.genome)
     if options.aligner == 'walt':
@@ -107,22 +114,22 @@ def genome_select():
     logger.log(MESSAGE, timestamp("Genome Path - '%s'" % genome_file))
     return genome_file
 
+
 def choose_alignCommand(target_genome, nThreads, fq_files, base_name, isPaired):
+    alignerPath = getFunctionPath(options.aligner)
     if isPaired == "True":
-        aligners = {'bismark':"/usr/local/bin/bismark-0.18.1/bismark --genome %s --parallel %s -1 %s -2 %s" % tuple([target_genome] + [nThreads] + list(fq_files[0])),
-                    'bwameth':' python /home/loc100/miniconda3/pkgs/bwameth-0.2.0-py36_0/bin/bwameth.py --reference %s --threads %s %s %s > %s.sam' % tuple([target_genome] + [nThreads] + list(fq_files[0]) + [base_name]),
-                    'walt':'/usr/local/bin/walt/walt -t %s -i %s -1 %s -2 %s -o %s.sam' % tuple([nThreads] + [target_genome] + list(fq_files[0]) + [base_name])}
+        aligners = {'bismark':"%s --genome %s --parallel %s -1 %s -2 %s" % tuple([alignerPath] + [target_genome] + [nThreads] + list(fq_files[0])),
+                    'walt':'%s -t %s -i %s -1 %s -2 %s -o %s.sam' % tuple([alignerPath] + [nThreads] + [target_genome] + list(fq_files[0]) + [base_name])}
     else:
-        aligners = {'bismark':"/usr/local/bin/bismark-0.18.1/bismark --genome %s --parallel %s --se %s" % tuple([target_genome] + [nThreads] + list(fq_files[0])),
-                    'bwameth':' python /home/loc100/miniconda3/pkgs/bwameth-0.2.0-py36_0/bin/bwameth.py --reference %s --threads %s %s > %s.sam' % tuple([target_genome] + [nThreads] + list(fq_files[0]) + [base_name]),
-                    'walt':'/usr/local/bin/walt/walt -t %s -i %s -r %s -o %s.sam' % tuple([nThreads] + [target_genome] + list(fq_files[0]) + [base_name])}
+        aligners = {'bismark':"%s --genome %s --parallel %s --se %s" % tuple([alignerPath] + [target_genome] + [nThreads] + list(fq_files[0])),
+                    'walt':'%s -t %s -i %s -r %s -o %s.sam' % tuple([alignerPath] + [nThreads] + [target_genome] + list(fq_files[0]) + [base_name])}
     return aligners
     
 
 def aligner_select(target_genome, nThreads, fq_files, base_name, pairedReads):
     aligners= choose_alignCommand(target_genome, nThreads, fq_files, base_name, pairedReads)
     align_cmd = aligners.get(options.aligner)
-    if options.pbat == 'True' and options.aligner != 'bwameth':
+    if options.pbat == 'True':
         align_cmd = align_cmd + ' ' + getPBAT()
         logger.log(MESSAGE,  timestamp('Aligning in PBAT mode'))
     logger.log(MESSAGE,  timestamp("Align Command - '%s'" % align_cmd))
@@ -133,20 +140,19 @@ def bamMerge(bam_files, file_prefix):
     thread_factor = 1
     if options.aligner == 'bismark':
         thread_factor = 5
-    merge_cmd = 'usr/local/bin/samtools merge -@ %s -O BAM %s.bam %s' % (options.aligner_threads*thread_factor, file_prefix, ' '.join(bam_files))
+    merge_cmd = '%s merge -@ %s -O BAM %s.bam %s' % (getFunctionPath("samtools"), options.aligner_threads*thread_factor, file_prefix, ' '.join(bam_files))
     logger.log(MESSAGE, timestamp('merging %s files into 1' % len(bam_files)))
     os.system(merge_cmd)
 
 
 def bam_name_fix(base_name):
+    samtoolsPath = getFunctionPath("samtools")
     if options.isPairedEnd == "True":
         aligners={'bismark':'mv %s_r1_bismark_bt2_pe.bam %s.bam' % (base_name,base_name),
-                  'bwameth':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name),
-                  'walt':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name)}
+                  'walt':'%s view -b -@ %s -o %s.bam %s.sam' % (samtoolsPath, options.aligner_threads, base_name,base_name)}
     else:
         aligners={'bismark':'mv %s_r1_bismark_bt2.bam %s.bam' % (base_name,base_name),
-                  'bwameth':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name),
-                  'walt':'/usr/local/bin/samtools view -b -@ %s -o %s.bam %s.sam' % (options.aligner_threads, base_name,base_name)}
+                  'walt':'%s view -b -@ %s -o %s.bam %s.sam' % (samtoolsPath, options.aligner_threads, base_name,base_name)}
     fix_cmd = aligners.get(options.aligner)
     logger.log(MESSAGE,  timestamp("Correct filename - '%s'" % fix_cmd))
     return fix_cmd
@@ -158,21 +164,22 @@ def getPBAT():
     return aligners.get(options.aligner)
 
 
-def align_walt(input_files, base_name, target_genome):
-    logger.log(MESSAGE, timestamp('Unzipping %s and %s for WALT' % tuple(input_files[0])))
-    cmd1 = 'gunzip --keep %s' % input_files[0][0]
-    cmd2 = 'gunzip --keep %s' % input_files[0][1]
-    logger.log(MESSAGE, timestamp('Unzip r1: %s' % cmd1))
-    os.system(cmd1)
-    logger.log(MESSAGE, timestamp('Unzip r2: %s' % cmd2))
-    os.system(cmd2)
-    fq_files = []
-    for file in os.listdir(os.getcwd()):
-        if file.endswith('fq'):
-            fq_files.append(os.getcwd() + '/' + file)
-    fq_files.sort()
-    walt_cmd = aligner_select(target_genome, options.aligner_threads, [fq_files], base_name)
-    return walt_cmd
+#Walt code to be fixed in the future
+#def align_walt(input_files, base_name, target_genome):
+#    logger.log(MESSAGE, timestamp('Unzipping %s and %s for WALT' % tuple(input_files[0])))
+#    cmd1 = 'gunzip --keep %s' % input_files[0][0]
+#    cmd2 = 'gunzip --keep %s' % input_files[0][1]
+#    logger.log(MESSAGE, timestamp('Unzip r1: %s' % cmd1))
+#    os.system(cmd1)
+#    logger.log(MESSAGE, timestamp('Unzip r2: %s' % cmd2))
+#    os.system(cmd2)
+#    fq_files = []
+#    for file in os.listdir(os.getcwd()):
+#        if file.endswith('fq'):
+#            fq_files.append(os.getcwd() + '/' + file)
+#    fq_files.sort()
+#    walt_cmd = aligner_select(target_genome, options.aligner_threads, [fq_files], base_name)
+#    return walt_cmd
 
 
 def getFastqPairs():
@@ -185,7 +192,6 @@ def getFastqPairs():
     r2 = (target_files[1::2])
     return [(r1, options.sampleID + '_r1.fastq.gz'),
             (r2, options.sampleID + '_r2.fastq.gz')]
-
 
 
 # The actual pipeline
@@ -212,14 +218,18 @@ def type_select():
         return('Running from sra')
     else:
         return('Running from fastq')
+
     
 type_text = type_select() + ': ' + str(infiles)
 logger.log(MESSAGE, timestamp(type_text))
+
+
 @active_if(run_if_sra)
 @transform(sraFiles, formatter(".*.sra$"), [os.getcwd() + "/{basename[0]}_1.fastq.gz", os.getcwd() + "/{basename[0]}_2.fastq.gz"] if options.isPairedEnd == "True" else [os.getcwd() + "/{basename[0]}_1.fastq.gz"], logger, logger_mutex)
 #extract from sra
 def sraToFastq(input_file, output_files, logger, logger_mutex):
-    cmd = ("/usr/local/bin/sratoolkit/fastq-dump --split-files --gzip %s" % (input_file))
+    cmd = ("%s --split-files --gzip %s" % (getFunctionPath("fastq-dump"),input_file))
+    logger.log(MESSAGE,  timestamp("Running Command: %s" % cmd))
     exitcode, out, err = execute_cmd(cmd)
     
     with logger_mutex:
@@ -230,11 +240,12 @@ def sraToFastq(input_file, output_files, logger, logger_mutex):
 @collate(sraToFastq, regex("_[12].fastq.gz"), ["_1_val_1.fq.gz","_2_val_2.fq.gz"] if options.isPairedEnd == "True" else ["_1_trimmed.fq.gz"], logger, logger_mutex)
 
 def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
+    trimPath = getFunctionPath("trim_galore")
     if options.isPairedEnd == "True":
         if len(input_files[0]) < 2:
             raise Exception("One of read pairs %s missing" % (input_files[0]))
         if len(input_files[0]) == 2:
-            cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple(input_files[0]))
+            cmd=('%s --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
         if len(input_files[0]) > 2 and (len(input_files[0])/2).is_integer() == False:
             raise Exception("File missing in %s" % (input_files))
@@ -245,10 +256,10 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
             logger.log(MESSAGE, timestamp(target_files_1))
             logger.log(MESSAGE, timestamp(target_files_2))
             for r1, r2 in zip(target_files_1, target_files_2):
-                cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(r1, r2))
+                cmd=('%s --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(trimPath,r1, r2))
                 exitcode, out, err = execute_cmd(cmd)
     else:
-        cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip %s' % tuple(input_files[0]))
+        cmd=('%s --fastqc --fastqc_args "--extract" --gzip %s' % tuple([trimPath] + input_files[0]))
         exitcode, out, err = execute_cmd(cmd)
 
     with logger_mutex:
@@ -260,10 +271,12 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
                             ['{file_details[0]}1{set_number[0]}_val_1.fq.gz',
                              '{file_details[0]}2{set_number[0]}_val_2.fq.gz'], logger, logger_mutex)
 def trim_fastq2(input_files, output_paired_files, logger, logger_mutex):
+    trimPath = getFunctionPath("trim_galore")
     if len(input_files) < 2:
         raise Exception("One of read pairs %s missing" % (input_files))
     if len(input_files) == 2:
-        cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple(input_files))
+        cmd_args = tuple([trimPath]) + input_files
+        cmd=('%s --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % cmd_args)
         exitcode, out, err = execute_cmd(cmd)
     if len(input_files) > 2 and (len(input_files)/2).is_integer() == False:
         raise Exception("File missing in %s" % (input_files))
@@ -272,7 +285,7 @@ def trim_fastq2(input_files, output_paired_files, logger, logger_mutex):
         target_files_1 = ' '.join(input_files[::2])
         target_files_2 = ' '.join(input_files[1::2])
         for r1, r2 in zip(target_files_1, target_files_2):
-            cmd=('/usr/bin/trim_galore --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(r1, r2))
+            cmd=('%s --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(trimPath, r1, r2))
             exitcode, out, err = execute_cmd(cmd)
 
     with logger_mutex:
@@ -320,7 +333,6 @@ def align_fastq(input_files, output_file, logger, logger_mutex):
     else:
         cmd=aligner_select(genome_file, options.aligner_threads, input_files, base_name, options.isPairedEnd)
     logger.log(MESSAGE, timestamp(cmd))
-    #bwameth needs data piped to file/samtools. Can't use execute_cmd
     os.system(cmd)
     #name fix
     mv_cmd=bam_name_fix(base_name)
@@ -332,8 +344,9 @@ def align_fastq(input_files, output_file, logger, logger_mutex):
 @transform(align_fastq, regex(r".bam"), ["_s.bam", "_s.bam.bai"], logger, logger_mutex)
 
 def sort_bam(input_file, output_file, logger, logger_mutex):
-    os.system("/usr/local/bin/samtools sort -m 2G -O bam -@ 12 -o %s %s " % (output_file[0], input_file))
-    index_cmd = ("/usr/local/bin/samtools index %s" % output_file[0])
+    samtoolsPath = getFunctionPath("samtools")
+    os.system("%s sort -m 2G -O bam -@ 12 -o %s %s " % (samtoolsPath, output_file[0], input_file))
+    index_cmd = ("%s index %s" % (samtoolsPath, output_file[0]))
     os.system(index_cmd)
     with logger_mutex:
         logger.log(MESSAGE,  timestamp("Sam sorted and converted to bam"))
@@ -342,7 +355,9 @@ def sort_bam(input_file, output_file, logger, logger_mutex):
 @transform(sort_bam, formatter(".*_s.bam$"), ['{basename[0]}d.bam','{basename[0]}d_flagstat.txt'], logger, logger_mutex)
 def mDuplicates(input_file, output_file, logger, logger_mutex):
     os.mkdir("./tmp")
-    cmd="java -Xms8g -jar /usr/local/bin/picard/build/libs/picard.jar MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=false TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % (input_file[0], output_file[0], options.sampleID)
+    javaPath = getFunctionPath("java")
+    picardPath = getFunctionPath("picard.jar")
+    cmd="%s -Xms8g -jar %s MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=false TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % (javaPath, picardPath, input_file[0], output_file[0], options.sampleID)
     logger.log(MESSAGE,  timestamp(cmd))
     os.system(cmd)
     if options.aligner == 'bismark':
@@ -356,7 +371,9 @@ def mDuplicates(input_file, output_file, logger, logger_mutex):
 
 @transform(mDuplicates, formatter('.*_sd.bam$'), ['{basename[0]}_genomeCoverageBed.txt','{basename[0]}_coverage.txt'], logger, logger_mutex)
 def calculateCoverage(input_file, output_file, logger, logger_mutex):
-    cmd = "/home/loc100/miniconda3/bin/samtools view -b -F 0x400 %s | /usr/bin/genomeCoverageBed -ibam - -g /media/bowen_work/pipeline_data/Genomes/%s/%s.genome > %s" % (input_file[0], options.genome, options.genome, output_file[0])
+    samtoolsPath = getFunctionPath("samtools")
+    covBedpath = getFunctionPath("genomeCoverageBed")
+    cmd = "%s view -b -F 0x400 %s | %s -ibam - -g /media/bowen_work/pipeline_data/Genomes/%s/%s.genome > %s" % (samtoolsPath, input_file[0], covBedpath, options.genome, options.genome, output_file[0])
     os.system(cmd)
     covFile = pd.read_table(output_file[0], header=None, names=['chr','depth','base_count','chr_size_bp','fraction'])
     genomeCov = covFile[covFile['chr'] == 'genome']
@@ -367,9 +384,10 @@ def calculateCoverage(input_file, output_file, logger, logger_mutex):
 
 @transform(mDuplicates, regex(r".bam$"), ["_CpG.bedGraph",'_OB.svg','_OT.svg'], logger, logger_mutex)
 def call_meth(input_file, output_file, logger, logger_mutex):
-    bias_cmd=("MethylDackel mbias -@ %s /media/bowen_work/pipeline_data/Genomes/%s/%s.fa %s %s" % (options.aligner_threads, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
+    methPath = getFunctionPath("MethylDackel")
+    bias_cmd=("%s mbias -@ %s /media/bowen_work/pipeline_data/Genomes/%s/%s.fa %s %s" % (methPath, options.aligner_threads, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
     os.system(bias_cmd)
-    cmd=("/usr/local/bin/MethylDackel extract -@ %s --mergeContext /media/bowen_work/pipeline_data/Genomes/%s/%s.fa %s" % (options.aligner_threads, options.genome, options.genome, input_file[0]))
+    cmd=("%s extract -@ %s --mergeContext /media/bowen_work/pipeline_data/Genomes/%s/%s.fa %s" % (methPath, options.aligner_threads, options.genome, options.genome, input_file[0]))
     os.system(cmd)
     
     with logger_mutex:
