@@ -13,4 +13,5 @@ mkdir ./stats/picard
 mv $1*metrics.test ./stats/picard/
 mkdir QC
 mv *fastqc* ./QC/
+rm -r ./tmp
 echo 'Cleanup finished'
