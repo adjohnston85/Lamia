@@ -13,13 +13,13 @@ calling (methyldackel), as well as produce some summary statistics.\
 \
 ##Output\
 The pipeline will output;\
-\
-* Processed bam file & index (aligned, sorted and duplicate marked)\
-* Some summary statistics (average genomic coverage, read counts, duplication rate)\
-* CpG methylation calls in bedGraph format (with --merge-context)\
-* QC files\
-   * Methylation bias plots\
-   * FASTQC reports\
+
+* Processed bam file & index (aligned, sorted and duplicate marked)
+* Some summary statistics (average genomic coverage, read counts, duplication rate)
+* CpG methylation calls in bedGraph format (with --merge-context)
+* QC files
+   * Methylation bias plots
+   * FASTQC reports
 \
 A large number of intermediate files are also produced, these can be removed (and the final directory structure formed) using the \
 included cleanup script\
@@ -29,7 +29,7 @@ bismark mapping steps or when running from SRA files. When running from SRA, cle
 by fastq-dump. The user must remove these manually. This is to prevent the accidental deletion of raw fastq files when running on\
 user generated data. This can also be prevented by good data practices (e.g. soft linking raw data).\
 \
-##Using Majel
+##Using Majel\
 Majel makes use of the Python pipelining module ruffus (see [ruffus docs](http://www.ruffus.org.uk/)). Expect a long walltime on\
 high coverage datasets (>5 days).\
 \
@@ -107,20 +107,20 @@ pipeline arguments:\
  
 ##Required software\
 Majel was written using the following packages;\
-* FastQC v0.11.5\
-* bismark-0.18.1 https://www.bioinformatics.babraham.ac.uk/projects/bismark/\
-* Methyldackel-0.3.0 (using HTSlib version 1.2.1) https://github.com/dpryan79/MethylDackel\
-* trim_galore-0.4.3 https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/\
-* fastq-dump : 2.8.2 (from sra toolkit) https://www.ncbi.nlm.nih.gov/sra/docs/toolkitsoft/\
-* samtools-1.4.1 (using htslib 1.4.1) http://www.htslib.org/doc/samtools.html\
-* picard MarkDuplicates version 2.9.4-1-gcda9516-SNAPSHOT https://broadinstitute.github.io/picard/command-line-overview.html\
+* FastQC v0.11.5
+* bismark-0.18.1 https://www.bioinformatics.babraham.ac.uk/projects/bismark/
+* Methyldackel-0.3.0 (using HTSlib version 1.2.1) https://github.com/dpryan79/MethylDackel
+* trim_galore-0.4.3 https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/
+* fastq-dump : 2.8.2 (from sra toolkit) https://www.ncbi.nlm.nih.gov/sra/docs/toolkitsoft/
+* samtools-1.4.1 (using htslib 1.4.1) http://www.htslib.org/doc/samtools.html
+* picard MarkDuplicates version 2.9.4-1-gcda9516-SNAPSHOT https://broadinstitute.github.io/picard/command-line-overview.html
 \
 Majel will call the following python modules;\
-* ruffus\
-* os\
-* subprocess\
-* time\
-* shlex\
-* re\
-* pandas\
+* ruffus
+* os
+* subprocess
+* time
+* shlex
+* re
+* pandas
 
