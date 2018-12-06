@@ -37,7 +37,8 @@ high coverage datasets (>5 days).\
 \
 Majel help is available using the '--help' flag.\
 
-```usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]
+```
+usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]
                 [-j N] [--use_threads] [-n] [--touch_files_only]
                 [--recreate_database] [--checksum_file_name FILE]
                 [--flowchart FILE] [--key_legend_in_graph]
@@ -105,9 +106,10 @@ pipeline arguments:
                         'jpg' (bitmap graphics) etc
   --forced_tasks JOBNAME
                         Task(s) which will be included even if they are up to
-                        date```
+                        date
+```
  
-## Required software\
+## Required software
 Majel was written using the following packages\
 * FastQC v0.11.5
 * bismark-0.18.1 https://www.bioinformatics.babraham.ac.uk/projects/bismark/
