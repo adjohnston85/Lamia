@@ -1,4 +1,4 @@
-#Majel Whole Genome Bisulfite Sequencing (WGBS) processing pipeline\
+# Majel Whole Genome Bisulfite Sequencing (WGBS) processing pipeline\
 
 This data processing pipeline (nicknamed Majel) will process both paired- and single-end SRA files (from NCBI SRA database)\
 or paired-end FASTQ files. Fastq files can be obtained from some public data repositories, directly from your sequencing \
@@ -11,7 +11,7 @@ calling (methyldackel), as well as produce some summary statistics.\
 \
 ![Majel Process](/images/MajelFlowchart.png)
 \
-##Output\
+## Output\
 The pipeline will output the following.\
 
 * Processed bam file & index (aligned, sorted and duplicate marked)
@@ -20,6 +20,7 @@ The pipeline will output the following.\
 * QC files
    * Methylation bias plots
    * FASTQC reports
+
 \
 A large number of intermediate files are also produced, these can be removed (and the final directory structure formed) using the \
 included cleanup script\
@@ -29,7 +30,7 @@ bismark mapping steps or when running from SRA files. When running from SRA, cle
 by fastq-dump. The user must remove these manually. This is to prevent the accidental deletion of raw fastq files when running on\
 user generated data. This can also be prevented by good data practices (e.g. soft linking raw data).\
 \
-##Using Majel\
+## Using Majel\
 Majel makes use of the Python pipelining module ruffus (see [ruffus docs](http://www.ruffus.org.uk/)). Expect a long walltime on\
 high coverage datasets (>5 days).\
 \
@@ -48,7 +49,7 @@ usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]\
 \
 Majel.py - Automated WGBS processing pipeline\
 \
-optional arguments:\
+optional arguments: \
   -h, --help            show this help message and exit\
   --genome GENOME       Genome reads are aligned too. Check genome files for\
                         your prefered aligner are in /media/bowen_work/pipelin\
@@ -77,7 +78,7 @@ Common options:\
   -L FILE, --log_file FILE\
                         Name and path of log file\
 \
-pipeline arguments:\
+pipeline arguments: \
   -T JOBNAME, --target_tasks JOBNAME\
                         Target task(s) of pipeline.\
   -j N, --jobs N        Allow N jobs (commands) to run simultaneously.\
@@ -105,7 +106,7 @@ pipeline arguments:\
                         Task(s) which will be included even if they are up to\
                         date.\
  
-##Required software\
+## Required software\
 Majel was written using the following packages\
 * FastQC v0.11.5
 * bismark-0.18.1 https://www.bioinformatics.babraham.ac.uk/projects/bismark/
@@ -114,6 +115,7 @@ Majel was written using the following packages\
 * fastq-dump : 2.8.2 (from sra toolkit) https://www.ncbi.nlm.nih.gov/sra/docs/toolkitsoft/
 * samtools-1.4.1 (using htslib 1.4.1) http://www.htslib.org/doc/samtools.html
 * picard MarkDuplicates version 2.9.4-1-gcda9516-SNAPSHOT https://broadinstitute.github.io/picard/command-line-overview.html
+
 \
 Majel will call the following python modules\
 * ruffus
