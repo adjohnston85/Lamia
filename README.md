@@ -8,11 +8,11 @@ method (e.g. wget).\
 Majel will automate all subsequent standard processing steps, including conversion from sra to fastq (fastq-dump), read \
 trmming & FASTQC (trim-galore), mapping (bismark), duplicate marking (picard), methylation bias assesment & CpG methylation \
 calling (methyldackel), as well as produce some summary statistics.\
-\
-![Majel Process](/images/MajelFlowchart.png)
-\
-## Output\
-The pipeline will output the following.\
+
+![Majel Process](./images/MajelFlowchart.png)
+
+## Output \
+The pipeline will output the following. \
 
 * Processed bam file & index (aligned, sorted and duplicate marked)
 * Some summary statistics (average genomic coverage, read counts, duplication rate)
@@ -24,12 +24,12 @@ The pipeline will output the following.\
 \
 A large number of intermediate files are also produced, these can be removed (and the final directory structure formed) using the \
 included cleanup script\
-	cleanup.sh sampleID\
+  cleanup.sh sampleID \
 These intermediate files can be very large when working with high-coverage datasets. This can be especially true during the \
 bismark mapping steps or when running from SRA files. When running from SRA, cleanup.sh will not remove fastq files produced\
 by fastq-dump. The user must remove these manually. This is to prevent the accidental deletion of raw fastq files when running on\
 user generated data. This can also be prevented by good data practices (e.g. soft linking raw data).\
-\
+
 ## Using Majel\
 Majel makes use of the Python pipelining module ruffus (see [ruffus docs](http://www.ruffus.org.uk/)). Expect a long walltime on\
 high coverage datasets (>5 days).\
