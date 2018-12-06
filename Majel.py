@@ -360,11 +360,7 @@ def mDuplicates(input_file, output_file, logger, logger_mutex):
     cmd="%s -Xms8g -jar %s MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=false TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % (javaPath, picardPath, input_file[0], output_file[0], options.sampleID)
     logger.log(MESSAGE,  timestamp(cmd))
     os.system(cmd)
-    if options.aligner == 'bismark':
-        nThreads = 4*options.aligner_threads
-    else:
-        nThreads = options.aligner_threads
-    flagstat_cmd = '/home/loc100/miniconda3/bin/samtools flagstat -@ %s %s > %s' % (nThreads, output_file[0], output_file[1])
+    flagstat_cmd = '/home/loc100/miniconda3/bin/samtools flagstat %s > %s' % (output_file[0], output_file[1])
     os.system(flagstat_cmd)
     with logger_mutex:
         logger.log(MESSAGE,  timestamp("Picard Complteted"))
