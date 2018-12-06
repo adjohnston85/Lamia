@@ -12,7 +12,7 @@ calling (methyldackel), as well as produce some summary statistics.\
 ![Majel Process](/images/MajelFlowchart.png)
 \
 ##Output\
-The pipeline will output;\
+The pipeline will output the following.\
 
 * Processed bam file & index (aligned, sorted and duplicate marked)
 * Some summary statistics (average genomic coverage, read counts, duplication rate)
@@ -106,7 +106,7 @@ pipeline arguments:\
                         date.\
  
 ##Required software\
-Majel was written using the following packages;\
+Majel was written using the following packages\
 * FastQC v0.11.5
 * bismark-0.18.1 https://www.bioinformatics.babraham.ac.uk/projects/bismark/
 * Methyldackel-0.3.0 (using HTSlib version 1.2.1) https://github.com/dpryan79/MethylDackel
@@ -115,7 +115,7 @@ Majel was written using the following packages;\
 * samtools-1.4.1 (using htslib 1.4.1) http://www.htslib.org/doc/samtools.html
 * picard MarkDuplicates version 2.9.4-1-gcda9516-SNAPSHOT https://broadinstitute.github.io/picard/command-line-overview.html
 \
-Majel will call the following python modules;\
+Majel will call the following python modules\
 * ruffus
 * os
 * subprocess
