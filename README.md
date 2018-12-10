@@ -7,7 +7,7 @@ method (e.g. wget).\
 \
 Majel will automate all subsequent standard processing steps, including conversion from sra to fastq (fastq-dump), read \
 trmming & FASTQC (trim-galore), mapping (bismark), duplicate marking (picard), methylation bias assesment & CpG methylation \
-calling (methyldackel), as well as produce some summary statistics. \
+calling (methyldackel), borwser tracks, UMR/LMR/PMD calls, as well as produce some summary statistics.
 
 ![Majel Process](./images/MajelFlowchart.png)
 
@@ -20,6 +20,8 @@ The pipeline will output the following.
 * QC files
    * Methylation bias plots
    * FASTQC reports
+* MethylSeekR UMR, LMR and PMD calls plus QC plots
+* TDF file for viewing in IGV
 
 \
 A large number of intermediate files are also produced, these can be removed (and the final directory structure formed) using the \
@@ -29,13 +31,13 @@ included cleanup script\
 These intermediate files can be very large when working with high-coverage datasets. This can be especially true during the \
 bismark mapping steps or when running from SRA files. When running from SRA, cleanup.sh will not remove fastq files produced\
 by fastq-dump. The user must remove these manually. This is to prevent the accidental deletion of raw fastq files when running on\
-user generated data. This can also be prevented by good data practices (e.g. soft linking raw data).\
+user generated data. This can also be prevented by good data practices (e.g. soft linking raw data).
 
 ## Using Majel
 Majel makes use of the Python pipelining module ruffus (see [ruffus docs](http://www.ruffus.org.uk/)). Expect a long walltime on\
 high coverage datasets (>5 days).\
 \
-Majel help is available using the '--help' flag.\
+Majel help is available using the '--help' flag.
 
 ```
 usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]
@@ -110,7 +112,7 @@ pipeline arguments:
 ```
  
 ## Required software
-Majel was written using the following packages\
+Majel was written using the following packages
 * FastQC v0.11.5
 * bismark-0.18.1 https://www.bioinformatics.babraham.ac.uk/projects/bismark/
 * Methyldackel-0.3.0 (using HTSlib version 1.2.1) https://github.com/dpryan79/MethylDackel
@@ -118,9 +120,10 @@ Majel was written using the following packages\
 * fastq-dump : 2.8.2 (from sra toolkit) https://www.ncbi.nlm.nih.gov/sra/docs/toolkitsoft/
 * samtools-1.4.1 (using htslib 1.4.1) http://www.htslib.org/doc/samtools.html
 * picard MarkDuplicates version 2.9.4-1-gcda9516-SNAPSHOT https://broadinstitute.github.io/picard/command-line-overview.html
+* igvtools (from IGV Version 2.3.95)
 
 \
-Majel will call the following python modules\
+Majel will call the following python modules
 * ruffus
 * os
 * subprocess
@@ -128,4 +131,16 @@ Majel will call the following python modules\
 * shlex
 * re
 * pandas
+
+\
+Majel requires the following R packages
+* littler
+* optparse
+* MethylSeekR
+* data.table
+* GenomicRanges
+* rtracklayer
+* BSgenome
+* BSgenome.Hsapiens.UCSC.hg19
+* parallel
 

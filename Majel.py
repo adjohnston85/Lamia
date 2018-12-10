@@ -381,12 +381,20 @@ def calculateCoverage(input_file, output_file, logger, logger_mutex):
 @transform(mDuplicates, regex(r".bam$"), ["_CpG.bedGraph",'_OB.svg','_OT.svg'], logger, logger_mutex)
 def call_meth(input_file, output_file, logger, logger_mutex):
     methPath = getFunctionPath("MethylDackel")
-    bias_cmd=("%s mbias -@ %s /media/bowen_work/pipeline_data/Genomes/%s/%s.fa %s %s" % (methPath, options.aligner_threads, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
+    bias_cmd=("%s mbias -@ %s %s/pipeline_data/Genomes/%s/%s.fa %s %s" % (methPath, options.aligner_threads, options.bowenPath, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
     os.system(bias_cmd)
-    cmd=("%s extract -@ %s --mergeContext /media/bowen_work/pipeline_data/Genomes/%s/%s.fa %s" % (methPath, options.aligner_threads, options.genome, options.genome, input_file[0]))
+    cmd=("%s extract -@ %s --mergeContext %s/pipeline_data/Genomes/%s/%s.fa %s" % (methPath, options.aligner_threads, options.bowenPath, options.genome, options.genome, input_file[0]))
     os.system(cmd)
     
     with logger_mutex:
         logger.log(MESSAGE,  timestamp("MethylDackel Completed"))
+
+@transform(call_meth, regex(r"_sd_CpG.bedGraph"), ["_PMD.bed", "_UMRLMR.bed", "_wPMD_UMRLMR.bed", "_sd_CpG.tdf"])
+def methylseekrAndTDF(input_file, outpu_file, logger, logger_mutex):
+    Rscript_cmd = "Rscript %s/pipeline_data/majel_wgbspipline/main/Rscripts/CallMethylseekrRegions_and_convertMethCallsToTdf.R -g %s -i %s -t %s/pipeline_data/majel_wgbspipline/main/data/TissueToEmbryoMap.csv -p %s" % (options.bowenPath, options.genome, input_file[0], options.bowenPath, options.aligner_threads)
+    os.system(Rscript_cmd)
     
+    with logger_mutex:
+        logger.log(MESSAGE,  timestamp("MethylSeekR and toTDF Completed"))
+
 cmdline.run(options)
