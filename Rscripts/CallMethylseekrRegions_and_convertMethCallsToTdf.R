@@ -7,7 +7,6 @@ library(data.table)
 library(GenomicRanges)
 library(rtracklayer)
 library(BSgenome)
-library(BSgenome.Hsapiens.UCSC.hg19)
 library(parallel)
 
 #parse options & determine genome files
@@ -24,6 +23,12 @@ option_list = list(
 
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
+
+if(opt$genome == "hg38"){
+  library(BSgenome.Hsapiens.UCSC.hg38)
+}else if(opt$genome == "hg38"){
+  library(BSgenome.Hsapiens.UCSC.hg19)
+}
 
 #set up colour map
 bodyMap = read.csv(opt$tissue_map, header = TRUE, stringsAsFactors = FALSE)
