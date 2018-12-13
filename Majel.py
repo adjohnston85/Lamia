@@ -389,7 +389,7 @@ def call_meth(input_file, output_file, logger, logger_mutex):
     with logger_mutex:
         logger.log(MESSAGE,  timestamp("MethylDackel Completed"))
 
-@transform(call_meth, regex(r"_sd_CpG.bedGraph"), ["_PMD.bed", "_UMRLMR.bed", "_wPMD_UMRLMR.bed", "_sd_CpG.tdf"])
+@transform(call_meth, regex(r"_sd_CpG.bedGraph"), ["_PMD.bed", "_UMRLMR.bed", "_wPMD_UMRLMR.bed", "_sd_CpG.tdf"], logger, logger_mutex)
 def methylseekrAndTDF(input_file, outpu_file, logger, logger_mutex):
     Rscript_cmd = "Rscript %s/pipeline_data/majel_wgbspipline/main/Rscripts/CallMethylseekrRegions_and_convertMethCallsToTdf.R -g %s -i %s -t %s/pipeline_data/majel_wgbspipline/main/data/TissueToEmbryoMap.csv -p %s" % (options.bowenPath, options.genome, input_file[0], options.bowenPath, options.aligner_threads)
     os.system(Rscript_cmd)

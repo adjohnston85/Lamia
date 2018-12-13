@@ -14,4 +14,19 @@ mv $1*metrics.test ./stats/picard/
 mkdir QC
 mv *fastqc* ./QC/
 rm -r ./tmp
+mkdir browser_tracks
+mv $1_sd_CpG.tdf ./browser_tracks/
+mkdir MethylSeekR
+if grep -q "MethylSeekR not run, coverage < 10x" $1_PMD.bed
+then
+  echo "MethylSeekR not run, inadequate coverage"
+  touch ./MethylSeekR/InadequateCoverage.txt
+  rm $1{_PMD.bed,_UMRLMR.bed,_wPMD_UMRLMR.bed}
+else
+  mv *UMR* ./MethylSeekR/
+  mv *PMD* ./MethylSeekR/
+  mv *CalculateFDR* ./MethylSeekR/
+  mv *Segmentation* ./MethylSeekR/
+  mv $1_AlphaDistribution.pdf ./MethylSeekR/
+fi
 echo 'Cleanup finished'
