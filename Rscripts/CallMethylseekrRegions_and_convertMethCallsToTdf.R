@@ -26,7 +26,7 @@ opt = parse_args(opt_parser);
 
 if(opt$genome == "hg38"){
   library(BSgenome.Hsapiens.UCSC.hg38)
-}else if(opt$genome == "hg38"){
+}else if(opt$genome == "hg19"){
   library(BSgenome.Hsapiens.UCSC.hg19)
 }
 

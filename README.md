@@ -142,5 +142,6 @@ Majel requires the following R packages
 * rtracklayer
 * BSgenome
 * BSgenome.Hsapiens.UCSC.hg19
+* BSgenome.Hsapiens.UCSC.hg38
 * parallel
 
