@@ -26,8 +26,13 @@ opt = parse_args(opt_parser);
 
 if(opt$genome == "hg38"){
   library(BSgenome.Hsapiens.UCSC.hg38)
+  sLengths=seqlengths(Hsapiens)
 }else if(opt$genome == "hg19"){
   library(BSgenome.Hsapiens.UCSC.hg19)
+  sLengths=seqlengths(Hsapiens)
+}else if(opt$genome == "mm10"){
+  library(BSgenome.Mmusculus.UCSC.mm10)
+  sLengths=seqlengths(Mmusculus)
 }
 
 #set up colour map
@@ -58,6 +63,7 @@ out_prefix = gsub("_sd_CpG.bedGraph", "", bGraph_name)
 #1st check the coverage, minimum needed is 10x
 covFile = gsub("_CpG.bedGraph", "_coverage.txt", bGraph)
 covDetails = read.delim(covFile, header = TRUE, stringsAsFactors = FALSE, row.names = 1)
+
 if(covDetails$Average_Coverage < 10){
   print("Inadequate Coverage for methylseekR - making placeholder files")
   tmp_files = paste(out_prefix,
@@ -78,7 +84,6 @@ if(covDetails$Average_Coverage < 10){
   CpGislands.gr <- track(query)
   genome(CpGislands.gr) <- NA
   CpGislands.gr <- suppressWarnings(resize(CpGislands.gr, 5000, fix="center"))
-  sLengths=seqlengths(Hsapiens)
   
   #methyldackel output is chr, start, end, % meth, M reads, U reads
   meth.df = fread(bGraph, data.table = FALSE, skip = 1)
@@ -94,16 +99,32 @@ if(covDetails$Average_Coverage < 10){
   meth.gr = meth.gr[which(seqnames(meth.gr) %in% as.character(unique(seqnames(meth.gr))[unique(seqnames(meth.gr)) %in% names(sLengths)]))]
   #plot and call PMDs
   print("Calling PMDs")
-  PMDsegments.gr <- segmentPMDs(m=meth.gr, chr.sel="chr22",
+  
+  if(opt$genome == "hg38" | opt$genome == "hg19"){
+    PMDsegments.gr <- segmentPMDs(m=meth.gr, chr.sel="chr22",
                                 seqLengths=sLengths, num.cores=opt$parallel,
                                 pdfFilename = paste(out_prefix, "_PMD_segmentation.pdf", sep = ""))
-  pdf(paste(out_prefix, "_AlphaDistribution.pdf", sep = ""))
-  plotAlphaDistributionOneChr(m=meth.gr, chr.sel="chr22",
-                              num.cores=opt$parallel)
-  plotAlphaDistributionOneChr(m=subsetByOverlaps(meth.gr,
-                                                 PMDsegments.gr[values(PMDsegments.gr)$type=="notPMD"]), chr.sel="chr22",
-                              num.cores=opt$parallel)
-  dev.off()
+    pdf(paste(out_prefix, "_AlphaDistribution.pdf", sep = ""))
+    plotAlphaDistributionOneChr(m=meth.gr, chr.sel="chr22",
+                                num.cores=opt$parallel)
+    plotAlphaDistributionOneChr(m=subsetByOverlaps(meth.gr,
+                                                   PMDsegments.gr[values(PMDsegments.gr)$type=="notPMD"]), chr.sel="chr22",
+                                num.cores=opt$parallel)
+    dev.off()
+    BS_genome_type = Hsapiens
+    }else if(opt$genome == "mm10"){
+    PMDsegments.gr <- segmentPMDs(m=meth.gr, chr.sel="chr19",
+                                seqLengths=sLengths, num.cores=opt$parallel,
+                                pdfFilename = paste(out_prefix, "_PMD_segmentation.pdf", sep = ""))
+    pdf(paste(out_prefix, "_AlphaDistribution.pdf", sep = ""))
+    plotAlphaDistributionOneChr(m=meth.gr, chr.sel="chr19",
+                                num.cores=opt$parallel)
+    plotAlphaDistributionOneChr(m=subsetByOverlaps(meth.gr,
+                                                   PMDsegments.gr[values(PMDsegments.gr)$type=="notPMD"]), chr.sel="chr19",
+                                num.cores=opt$parallel)
+    dev.off()
+    BS_genome_type = Mmusculus
+  }
   tmp_pmd = PMDsegments.gr
   mcols(tmp_pmd) =  NULL
   tmp_pmd$type = mcols(PMDsegments.gr)$type
@@ -129,7 +150,7 @@ if(covDetails$Average_Coverage < 10){
   print("Calling UMR/LMR with PMDs")
   UMRLMRsegments_wPMD.gr <- segmentUMRsLMRs(m=meth.gr, meth.cutoff=m.sel,
                                             nCpG.cutoff=n.sel, PMDs=PMDsegments.gr,
-                                            num.cores=opt$parallel, myGenomeSeq=Hsapiens,
+                                            num.cores=opt$parallel, myGenomeSeq=BS_genome_type,
                                             seqLengths=sLengths,
                                             pdfFilename = paste(out_prefix, "_wPMD_UMRsegmentation.pdf", sep = ""))
   plotFinalSegmentation(m=meth.gr, segs=UMRLMRsegments_wPMD.gr,
@@ -159,7 +180,7 @@ if(covDetails$Average_Coverage < 10){
   print("UMR/LMR segmentation")
   UMRLMRsegments.gr <- segmentUMRsLMRs(m=meth.gr, meth.cutoff=m.sel,
                                        nCpG.cutoff=n.sel, 
-                                       num.cores=opt$parallel, myGenomeSeq=Hsapiens,
+                                       num.cores=opt$parallel, myGenomeSeq=BS_genome_type,
                                        seqLengths=sLengths,
                                        pdfFilename = paste(out_prefix, "_UMRsegmentation.pdf", sep = ""))
   plotFinalSegmentation(m=meth.gr, segs=UMRLMRsegments.gr,
@@ -255,4 +276,3 @@ if(length(germ_layer) == 0){
   print("Tidy Up")
   file.remove("tmp.bedGraph")
 }
-

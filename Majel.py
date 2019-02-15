@@ -31,7 +31,6 @@ def getFunctionPath(target):
 
 # get important directory locations
 pipeline_path = os.path.dirname(os.path.abspath(__file__))
-genomes_path = pipeline_path + '/Genomes'
 
 # Parse command line arguments
 parser = cmdline.get_argparse(description='test.py - Automated WGBS processing pipeline')
@@ -40,19 +39,18 @@ parser = cmdline.get_argparse(description='test.py - Automated WGBS processing p
 #removing multiple alingers for the time being
 #parser.add_argument("--aligner", help="Select prefered aligner [bismark, bwameth]. Defaults to bismark",
 #                    default="bismark")
-parser.add_argument("--genome", help="Genome reads are aligned too. Check genome files for your prefered aligner are in " + genomes_path + ". Defaults to hg38 (hg38)",
+parser.add_argument("--genome", help="Genome reads are aligned too. Defaults to hg38 (hg38)",
                     default="hg38")
-parser.add_argument("--data_dir", help="Directory for fastq files")
+parser.add_argument("--data_dir", help="Directory for input fastq/sra files")
 parser.add_argument("--sampleID", help="Sample name. Used for directory name and output file names")
 parser.add_argument("--aligner_threads", help="Speed up alignment by increasing number of threads. Values depends on the aligner. Defaults to 5",
                     default=5)
 parser.add_argument("--pbat", help="True if library method uses post-bis adapter tagging",
                     default=False)
 parser.add_argument("--file_type", help="Starting file type (sra or fastq)")
-parser.add_argument("--isPairedEnd",help = "IS the libarary paired end (defaults to True)",
+parser.add_argument("--isPairedEnd",help = "Is the libarary paired end (defaults to True)",
                     default="True")
-parser.add_argument("--bowenPath",help = "path to bowen volume (defaults to HPC path '/OSM/CBR/HB_FSP_TBI/work/'",
-                    default="/OSM/CBR/HB_FSP_TBI/work/")
+parser.add_argument("--genomePath",help = "Path to genome folder")
 options = parser.parse_args()
 
 # standard python logger which can be synchronised across concurrent Ruffus tasks
@@ -106,7 +104,7 @@ def check_expected_output(files, taskname):
 
 
 def genome_select():
-    genomes={'hg19':'%spipeline_data/Genomes/hg19/' % options.bowenPath, 'hg38':'%spipeline_data/Genomes/hg38/' % options.bowenPath}
+    genomes={'hg19':'%shg19/' % options.genomePath, 'hg38':'%shg38/' % options.genomePath, 'mm10':'%smm10/' % options.genomePath}
     if options.aligner == 'bismark':
         genome_file = genomes.get(options.genome)
     if options.aligner == 'walt':
@@ -369,7 +367,7 @@ def mDuplicates(input_file, output_file, logger, logger_mutex):
 def calculateCoverage(input_file, output_file, logger, logger_mutex):
     samtoolsPath = getFunctionPath("samtools")
     covBedpath = getFunctionPath("genomeCoverageBed")
-    cmd = "%s view -b -F 0x400 %s | %s -ibam - -g /media/bowen_work/pipeline_data/Genomes/%s/%s.genome > %s" % (samtoolsPath, input_file[0], covBedpath, options.genome, options.genome, output_file[0])
+    cmd = "%s view -b -F 0x400 %s | %s -ibam - -g %s%s/%s.genome > %s" % (samtoolsPath, input_file[0], covBedpath, options.genomePath, options.genome, options.genome, output_file[0])
     os.system(cmd)
     covFile = pd.read_table(output_file[0], header=None, names=['chr','depth','base_count','chr_size_bp','fraction'])
     genomeCov = covFile[covFile['chr'] == 'genome']
@@ -381,9 +379,9 @@ def calculateCoverage(input_file, output_file, logger, logger_mutex):
 @transform(mDuplicates, regex(r".bam$"), ["_CpG.bedGraph",'_OB.svg','_OT.svg'], logger, logger_mutex)
 def call_meth(input_file, output_file, logger, logger_mutex):
     methPath = getFunctionPath("MethylDackel")
-    bias_cmd=("%s mbias -@ %s %s/pipeline_data/Genomes/%s/%s.fa %s %s" % (methPath, options.aligner_threads, options.bowenPath, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
+    bias_cmd=("%s mbias -@ %s %s%s/%s.fa %s %s" % (methPath, options.aligner_threads, options.genomePath, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
     os.system(bias_cmd)
-    cmd=("%s extract -@ %s --mergeContext %s/pipeline_data/Genomes/%s/%s.fa %s" % (methPath, options.aligner_threads, options.bowenPath, options.genome, options.genome, input_file[0]))
+    cmd=("%s extract -@ %s --mergeContext %s%s/%s.fa %s" % (methPath, options.aligner_threads, options.genomePath, options.genome, options.genome, input_file[0]))
     os.system(cmd)
     
     with logger_mutex:
@@ -391,7 +389,7 @@ def call_meth(input_file, output_file, logger, logger_mutex):
 
 @transform(call_meth, regex(r"_sd_CpG.bedGraph"), ["_PMD.bed", "_UMRLMR.bed", "_wPMD_UMRLMR.bed", "_sd_CpG.tdf"], logger, logger_mutex)
 def methylseekrAndTDF(input_file, outpu_file, logger, logger_mutex):
-    Rscript_cmd = "Rscript %s/pipeline_data/majel_wgbspipline/main/Rscripts/CallMethylseekrRegions_and_convertMethCallsToTdf.R -g %s -i %s -t %s/pipeline_data/majel_wgbspipline/main/data/TissueToEmbryoMap.csv -p %s" % (options.bowenPath, options.genome, input_file[0], options.bowenPath, options.aligner_threads)
+    Rscript_cmd = "Rscript %s/Rscripts/CallMethylseekrRegions_and_convertMethCallsToTdf.R -g %s -i %s -t %s/data/TissueToEmbryoMap.csv -p %s" % (pipeline_path, options.genome, input_file[0], pipeline_path, options.aligner_threads)
     os.system(Rscript_cmd)
     
     with logger_mutex:

@@ -35,7 +35,7 @@ Wall time can be long (>5 days) for high coverage files, especially if the input
 
 
 
-The pipleine has been developed using the follwoing software;
+The pipleine has been developed using the following software;
 
 	FastQC v0.11.5
 	bismark-0.18.1 see https://www.bioinformatics.babraham.ac.uk/projects/bismark/

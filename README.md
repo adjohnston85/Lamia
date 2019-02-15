@@ -39,6 +39,10 @@ high coverage datasets (>5 days).\
 \
 Majel help is available using the '--help' flag.
 
+Basic usage: 
+cd to data folder
+python3 Path_to_majel_wgbspipline/Majey.py --data_dir Path_to_data/ --genome hg19/hg_38/mm10 --file_type sra/FASTQ --sampleID Name_of_tissue --genomePath Path_to_genome_folder/ -v 3 -L Path_to_data/Log_file
+
 ```
 usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]
                 [-j N] [--use_threads] [-n] [--touch_files_only]
@@ -55,11 +59,8 @@ Majel.py - Automated WGBS processing pipeline
 
 optional arguments: 
   -h, --help            show this help message and exit
-  --genome GENOME       Genome reads are aligned too. Check genome files for
-                        your prefered aligner are in /media/bowen_work/pipelin
-                        e_data/majel_wgbspipline/main/Genomes. Defaults to
-                        hg38 (hg38)
-  --data_dir DATA_DIR   Directory for fastq files
+  --genome GENOME       Genome reads are aligned too. Defaults to hg38 (hg38).
+  --data_dir DATA_DIR   Directory for input fastq/sra files.
   --sampleID SAMPLEID   Sample name. Used for directory name and output file
                         names
   --aligner_threads ALIGNER_THREADS
@@ -70,9 +71,9 @@ optional arguments:
                         Starting file type (sra or fastq)
   --isPairedEnd ISPAIREDEND 
                         Is the libarary paired end (defaults to True)
-  --bowenPath BOWENPATH
-                        path to bowen volume (defaults to HPC path
-                        '/OSM/CBR/HB_FSP_TBI/work/'
+  --genomePath GENOMEPATH
+                        Path to genome folder. Subdirectory name must be the 
+                        same as argument --genome, and contain the genome files.
 
 Common options:
   --verbose [VERBOSE], -v [VERBOSE]
@@ -143,5 +144,5 @@ Majel requires the following R packages
 * BSgenome
 * BSgenome.Hsapiens.UCSC.hg19
 * BSgenome.Hsapiens.UCSC.hg38
+* BSgenome.Mmusculus.UCSC.mm10
 * parallel
-
