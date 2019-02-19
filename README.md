@@ -41,9 +41,9 @@ Majel help is available using the '--help' flag.
 
 Basic usage:\
 cd to data folder\
-python3 Path_to_majel_wgbspipline/Majey.py --data_dir Path_to_data/ --genome hg19/hg_38/mm10 --file_type sra/FASTQ --sampleID Name_of_tissue --genomePath Path_to_genome_folder/ -v 3 -L Path_to_data/Log_file
+python3 Path_to_majel_wgbspipline/Majey.py --data_dir Path_to_data/ --genome hg19/hg_38/mm10 --file_type sra/FASTQ --sampleID Name_of_tissue --genomePath Path_to_genome_folder/ -v 3 -L Path_to_data/Log_file \
 \
-```
+
 usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]
                 [-j N] [--use_threads] [-n] [--touch_files_only]
                 [--recreate_database] [--checksum_file_name FILE]
@@ -122,6 +122,7 @@ Majel was written using the following packages
 * samtools-1.4.1 (using htslib 1.4.1) http://www.htslib.org/doc/samtools.html
 * picard MarkDuplicates version 2.9.4-1-gcda9516-SNAPSHOT https://broadinstitute.github.io/picard/command-line-overview.html
 * igvtools (from IGV Version 2.3.95)
+* bedtools 2.26.0
 
 \
 Majel will call the following python modules

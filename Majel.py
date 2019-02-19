@@ -13,7 +13,7 @@ import pandas as pd
 #define all paths to sofware (Popen will not use $PATH)
 def getFunctionPath(target):
     if re.sub(".*\\.","",target) == "jar":
-        proc = Popen(shlex.split('locate %s' % target), stdout = PIPE, stderr = PIPE)
+        proc = Popen(shlex.split('which %s' % target), stdout = PIPE, stderr = PIPE)
         functionPath = re.sub("\\n", "",proc.communicate()[0].decode("utf-8"))
     else:
         proc = Popen(shlex.split('which %s' % target), stdout = PIPE, stderr = PIPE)
@@ -355,13 +355,14 @@ def mDuplicates(input_file, output_file, logger, logger_mutex):
     os.mkdir("./tmp")
     javaPath = getFunctionPath("java")
     picardPath = getFunctionPath("picard.jar")
+    samtoolsPath = getFunctionPath("samtools")
     cmd="%s -Xms8g -jar %s MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=false TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % (javaPath, picardPath, input_file[0], output_file[0], options.sampleID)
     logger.log(MESSAGE,  timestamp(cmd))
     os.system(cmd)
-    flagstat_cmd = '/home/loc100/miniconda3/bin/samtools flagstat %s > %s' % (output_file[0], output_file[1])
+    flagstat_cmd = '%s flagstat %s > %s' % (samtoolsPath, output_file[0], output_file[1])
     os.system(flagstat_cmd)
     with logger_mutex:
-        logger.log(MESSAGE,  timestamp("Picard Complteted"))
+        logger.log(MESSAGE,  timestamp("Picard Completed"))
 
 @transform(mDuplicates, formatter('.*_sd.bam$'), ['{basename[0]}_genomeCoverageBed.txt','{basename[0]}_coverage.txt'], logger, logger_mutex)
 def calculateCoverage(input_file, output_file, logger, logger_mutex):
