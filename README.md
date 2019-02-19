@@ -43,7 +43,7 @@ Basic usage:\
 cd to data folder\
 python3 Path_to_majel_wgbspipline/Majey.py --data_dir Path_to_data/ --genome hg19/hg_38/mm10 --file_type sra/FASTQ --sampleID Name_of_tissue --genomePath Path_to_genome_folder/ -v 3 -L Path_to_data/Log_file \
 \
-
+```
 usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]
                 [-j N] [--use_threads] [-n] [--touch_files_only]
                 [--recreate_database] [--checksum_file_name FILE]
