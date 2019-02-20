@@ -73,7 +73,8 @@ optional arguments:
                         Is the libarary paired end (defaults to True)
   --genomePath GENOMEPATH
                         Path to genome folder. Subdirectory name must be the 
-                        same as argument --genome, and contain the genome files.
+                        same as argument --genome, and contain bisulfite genome (bismark),
+                        .genome file (bedtools), and .chrom.sizes file (igvtools).
 
 Common options:
   --verbose [VERBOSE], -v [VERBOSE]
