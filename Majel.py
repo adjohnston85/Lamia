@@ -297,7 +297,6 @@ def merge_fastq(input_files, output_files, logger, logger_mutex):
         input_flat = [item for sublist in input_files for item in sublist]
         logger.log(MESSAGE, timestamp('Only 1 fastq pair, no need to merge. Renaming to keep pipline flowing'))
         os.system('mv %s %s' % (input_flat[0], output_files[0]))
-        os.system('mv %s %s' % (input_flat[1], output_files[1]))
     elif options.isPairedEnd == "True":
         r1 = []
         r2 = []

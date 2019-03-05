@@ -10,6 +10,7 @@
 :: Need cutadapt for python library, also specify path to local bin containing executable
 :: Need bedtools, specify on man page.
 
+module load bowtie/2.2.9
 module load fastqc/0.11.5
 module load bismark/0.18.1
 module load trimgalore/0.4.4
