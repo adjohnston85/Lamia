@@ -223,29 +223,36 @@ if(tolower(sample_data[1]) == "skin"){
   germ_layer = unique(bodyMap[grep(gsub("Gland|Lobe","",sample_data[1]), bodyMap$simple_tissue, ignore.case = TRUE),
                               "germ_layer"])
 }
-#fix the occasional issue with grep returning more than one germ_layer
-if(length(germ_layer) > 1) germ_layer = germ_layer[length(germ_layer)]
-#convert colours for cancer, fetal or stem cell derived samples
-if(any(grepl("CML|CLL|ALL|cancer|carcinoma|adenoma|blastoma|Neoplasm|Tumor|Oncocytoma|immortal|glioma", sample_data, ignore.case = TRUE))){
-  germ_layer = paste(germ_layer, "cancer", sep = "_")
-}else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
-  germ_layer = "Stem"
+#user QC: Check your sampleID prior to starting!
+if(length(germ_layer) == 0){
+  #run will break here and return exit status = 1 if naming is incorrect
+    stop('File-naming is outside of defined convention! Re-name and re-run!')
+  }else{
+  #fix the occasional issue with grep returning more than one germ_layer
+  if(length(germ_layer) > 1) germ_layer = germ_layer[length(germ_layer)]
+  #convert colours for cancer, fetal or stem cell derived samples
+  if(any(grepl("CML|CLL|ALL|cancer|carcinoma|adenoma|blastoma|Neoplasm|Tumor|Oncocytoma|immortal|glioma", sample_data, ignore.case = TRUE))){
+    germ_layer = paste(germ_layer, "cancer", sep = "_")
+  }else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
+    germ_layer = "Stem"
+  }
+  col = colMap[[intersect(names(colMap), germ_layer)]]
+  tline@color=as.integer(col)
+  print(tline)
+  #now to create the file
+  print("remove lambda and sort")
+  print("...")
+  meth.gr = meth.gr[seqnames(meth.gr) != 'lambda']
+  print("...")
+  meth.gr = sort(meth.gr)
+  print("done")
+  print("Create tmp file")
+  export.bedGraph(meth.gr, "tmp.bedGraph", trackLine=tline)
+  print("done")
+  print("Make TDF")
+  cmd = paste("igvtools toTDF tmp.bedGraph", tdf_file, opt$genome)
+  system(cmd)
+  print("Tidy Up")
+  file.remove("tmp.bedGraph")
 }
-col = colMap[[intersect(names(colMap), germ_layer)]]
-tline@color=as.integer(col)
-print(tline)
-#now to create the file
-print("remove lambda and sort")
-print("...")
-meth.gr = meth.gr[seqnames(meth.gr) != 'lambda']
-print("...")
-meth.gr = sort(meth.gr)
-print("done")
-print("Create tmp file")
-export.bedGraph(meth.gr, "tmp.bedGraph", trackLine=tline)
-print("done")
-print("Make TDF")
-cmd = paste("igvtools toTDF tmp.bedGraph", tdf_file, opt$genome)
-system(cmd)
-print("Tidy Up")
-file.remove("tmp.bedGraph")
+
