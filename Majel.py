@@ -254,10 +254,10 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
             logger.log(MESSAGE, timestamp(target_files_1))
             logger.log(MESSAGE, timestamp(target_files_2))
             for r1, r2 in zip(target_files_1, target_files_2):
-                cmd=('%s --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(trimPath,r1, r2))
+                cmd=('%s --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple(trimPath,r1, r2))
                 exitcode, out, err = execute_cmd(cmd)
     else:
-        cmd=('%s --fastqc --fastqc_args "--extract" --gzip %s' % tuple([trimPath] + input_files[0]))
+        cmd=('%s --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --three_prime_clip_R1 10 %s' % tuple([trimPath] + input_files[0]))
         exitcode, out, err = execute_cmd(cmd)
 
     with logger_mutex:
@@ -283,7 +283,7 @@ def trim_fastq2(input_files, output_paired_files, logger, logger_mutex):
         target_files_1 = ' '.join(input_files[::2])
         target_files_2 = ' '.join(input_files[1::2])
         for r1, r2 in zip(target_files_1, target_files_2):
-            cmd=('%s --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(trimPath, r1, r2))
+            cmd=('%s --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple(trimPath, r1, r2))
             exitcode, out, err = execute_cmd(cmd)
 
     with logger_mutex:
@@ -293,9 +293,14 @@ def trim_fastq2(input_files, output_paired_files, logger, logger_mutex):
 @collate([trim_fastq, trim_fastq2], formatter("R*[12].*_(?:val_[12]|trimmed).fq.gz$"), ["{path[0]}/" + options.sampleID + "_r1.fq.gz", "{path[0]}/" + options.sampleID + "_r2.fq.gz"] if options.isPairedEnd == "True" else ["{path[0]}/" + options.sampleID + "_r1.fq.gz"], logger, logger_mutex)
 
 def merge_fastq(input_files, output_files, logger, logger_mutex):
-    if len(input_files) == 1:
+    if len(input_files) == 1 and options.isPairedEnd == "True":
         input_flat = [item for sublist in input_files for item in sublist]
         logger.log(MESSAGE, timestamp('Only 1 fastq pair, no need to merge. Renaming to keep pipline flowing'))
+        os.system('mv %s %s' % (input_flat[0], output_files[0]))
+        os.system('mv %s %s' % (input_flat[1], output_files[1]))
+    elif len(input_files) == 1:
+        input_flat = [item for sublist in input_files for item in sublist]
+        logger.log(MESSAGE, timestamp('Only 1 fastq, no need to merge. Renaming to keep pipline flowing'))
         os.system('mv %s %s' % (input_flat[0], output_files[0]))
     elif options.isPairedEnd == "True":
         r1 = []
