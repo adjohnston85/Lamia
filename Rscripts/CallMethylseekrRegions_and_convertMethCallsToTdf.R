@@ -18,7 +18,9 @@ option_list = list(
   make_option(c("-t", "--tissue_map"), type="character", default=NULL, 
               help="location of csv file that maps tissue name to embryonic layer (will be set by Majel)", metavar="character"),
   make_option(c("-p", "--parallel"), type="numeric", default=, 
-              help="Number of available cores for MethylSeekR - Defaults in Majel to 2*--aligner_threads (when aligner is bismark)", metavar="character")
+              help="Number of available cores for MethylSeekR - Defaults in Majel to 2*--aligner_threads (when aligner is bismark)", metavar="character"),
+  make_option(c("-e", "--genomePath"), type="character", 
+              help="Path to genome folder", metavar="character")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
