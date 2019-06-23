@@ -217,7 +217,8 @@ if(tolower(sample_data[1]) == "skin"){
   germ_layer = unique(bodyMap[grep(tolower(sample_data[1]), bodyMap$tissue, ignore.case = TRUE),
                               "germ_layer"])
 }else if(sample_data[1] == "CellLine"){
-  germ_layer = unique(bodyMap[grep(tolower(sample_data[2]), bodyMap$tissue, ignore.case = TRUE),
+  tmp_sample = unique(sample_data[which(tolower(sample_data) %in% bodyMap$tissue)])[1]
+  germ_layer = unique(bodyMap[grep(tolower(tmp_sample), bodyMap$tissue, ignore.case = TRUE),
                               "germ_layer"])
 }else{
   germ_layer = unique(bodyMap[grep(gsub("Gland|Lobe","",sample_data[1]), bodyMap$simple_tissue, ignore.case = TRUE),
