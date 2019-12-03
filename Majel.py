@@ -245,7 +245,7 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
         if len(input_files[0]) < 2:
             raise Exception("One of read pairs %s missing" % (input_files[0]))
         if len(input_files[0]) == 2:
-            cmd=('%s --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
+            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
         if len(input_files[0]) > 2 and (len(input_files[0])/2).is_integer() == False:
             raise Exception("File missing in %s" % (input_files))
@@ -276,7 +276,7 @@ def trim_fastq2(input_files, output_paired_files, logger, logger_mutex):
         raise Exception("One of read pairs %s missing" % (input_files))
     if len(input_files) == 2:
         cmd_args = tuple([trimPath]) + input_files
-        cmd=('%s --fastqc --fastqc_args "--extract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % cmd_args)
+        cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % cmd_args)
         exitcode, out, err = execute_cmd(cmd)
     if len(input_files) > 2 and (len(input_files)/2).is_integer() == False:
         raise Exception("File missing in %s" % (input_files))
