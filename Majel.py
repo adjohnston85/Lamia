@@ -266,15 +266,8 @@ def sraToFastq(input_file, output_files, logger, logger_mutex):
 
 def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
     trimPath = getFunctionPath("trim_galore")
-<<<<<<< HEAD
-    if options.isPairedEnd == "True":
-        if len(input_files[0]) < 2:
-            raise Exception("One of read pairs %s missing" % (input_files[0]))
-        if len(input_files[0]) == 2:
-=======
     if options.is_paired_end == "True":
         if all([len(files) == 2 for files in input_files]):
->>>>>>> origin/develop
             cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
         else:
@@ -296,26 +289,9 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
                                       '{file_details[0]}2{set_number[0]}_val_2.fq.gz'], logger, logger_mutex)
 def trim_fastq2(input_files, output_paired_files, logger, logger_mutex):
     trimPath = getFunctionPath("trim_galore")
-<<<<<<< HEAD
-    if len(input_files) < 2:
-        raise Exception("One of read pairs %s missing" % (input_files))
-    if len(input_files) == 2:
-        cmd_args = tuple([trimPath]) + input_files
-        cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % cmd_args)
-        exitcode, out, err = execute_cmd(cmd)
-    if len(input_files) > 2 and (len(input_files)/2).is_integer() == False:
-        raise Exception("File missing in %s" % (input_files))
-    if len(input_files) > 2 and (len(input_files)/2).is_integer() == True:
-        input_files.sort()
-        target_files_1 = ' '.join(input_files[::2])
-        target_files_2 = ' '.join(input_files[1::2])
-        for r1, r2 in zip(target_files_1, target_files_2):
-            cmd=('%s --fastqc --fastqc_args "--extract" --gzip --paired %s %s' % tuple(trimPath, r1, r2))
-=======
     if options.is_paired_end == "True":
         if all([len(files) == 2 for files in input_files]):
             cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
->>>>>>> origin/develop
             exitcode, out, err = execute_cmd(cmd)
         else:
             raise Exception("Unpaired files in input.")
