@@ -42,7 +42,7 @@ Majel help is available using the '--help' flag.
 Basic usage:\
 cd to data folder\
 python3 Path_to_majel_wgbspipline/Majey.py --data_dir Path_to_data/ --genome hg19/hg_38/mm10 --file_type sra/FASTQ --sampleID Name_of_tissue --genomePath Path_to_genome_folder/ -v 3 -L Path_to_data/Log_file \
-\
+
 ```
 usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]
                 [-j N] [--use_threads] [-n] [--touch_files_only]
@@ -50,31 +50,31 @@ usage: Majel.py [-h] [--verbose [VERBOSE]] [--version] [-L FILE] [-T JOBNAME]
                 [--flowchart FILE] [--key_legend_in_graph]
                 [--draw_graph_horizontally] [--flowchart_format FORMAT]
                 [--forced_tasks JOBNAME] [--genome GENOME]
-                [--data_dir DATA_DIR] [--sampleID SAMPLEID]
-                [--aligner_threads ALIGNER_THREADS] [--pbat PBAT]
-                [--file_type FILE_TYPE] [--isPairedEnd ISPAIREDEND]
-                [--bowenPath BOWENPATH]
+                [--data_dir DATA_DIR] [--sample_name SAMPLE_NAME]
+                [--aligner_threads ALIGNER_THREADS] [--pbat]
+                [--is_paired_end IS_PAIRED_END] [--genome_path GENOME_PATH]
 
-Majel.py - Automated WGBS processing pipeline
+Majel.py - Automated WGBS processing pipeline for sra and fastq file types
 
-optional arguments: 
+optional arguments:
   -h, --help            show this help message and exit
-  --genome GENOME       Genome reads are aligned too. Defaults to hg38 (hg38).
-  --data_dir DATA_DIR   Directory for input fastq/sra files.
-  --sampleID SAMPLEID   Sample name. Used for directory name and output file
-                        names
+  --genome GENOME       Genome for alignment. Must be a directory in your
+                        --genome_path. Defaults to hg38 (hg38)
+  --data_dir DATA_DIR   Directory for input fastq/sra files
+  --sample_name SAMPLE_NAME
+                        Sample name. Used for output file names and should
+                        match directory name. Will determine colouring of TDF
+                        track file and must conform to following convention
+                        "Tissue_SubTissue_HealthStatus_Identifier"
   --aligner_threads ALIGNER_THREADS
                         Speed up alignment by increasing number of threads.
                         Values depends on the aligner. Defaults to 5
-  --pbat PBAT           True if library method uses post-bis adapter tagging
-  --file_type FILE_TYPE
-                        Starting file type (sra or fastq)
-  --isPairedEnd ISPAIREDEND 
+  --pbat                Specify when aligning pbat library
+  --is_paired_end IS_PAIRED_END
                         Is the libarary paired end (defaults to True)
-  --genomePath GENOMEPATH
-                        Path to genome folder. Subdirectory name must be the 
-                        same as argument --genome, and contain bisulfite genome (bismark),
-                        .genome file (bedtools), and .chrom.sizes file (igvtools).
+  --genome_path GENOME_PATH
+                        Path to genome folder, must contain a --genome
+                        directory
 
 Common options:
   --verbose [VERBOSE], -v [VERBOSE]
@@ -84,7 +84,7 @@ Common options:
   -L FILE, --log_file FILE
                         Name and path of log file
 
-pipeline arguments: 
+pipeline arguments:
   -T JOBNAME, --target_tasks JOBNAME
                         Target task(s) of pipeline.
   -j N, --jobs N        Allow N jobs (commands) to run simultaneously.
@@ -110,7 +110,7 @@ pipeline arguments:
                         'jpg' (bitmap graphics) etc
   --forced_tasks JOBNAME
                         Task(s) which will be included even if they are up to
-                        date
+                        date.
 ```
  
 ## Required software
@@ -134,6 +134,7 @@ Majel will call the following python modules
 * shlex
 * re
 * pandas
+* sys
 
 \
 Majel requires the following R packages

@@ -35,6 +35,7 @@ if(opt$genome == "hg38"){
 }else if(opt$genome == "mm10"){
   library(BSgenome.Mmusculus.UCSC.mm10)
   sLengths=seqlengths(Mmusculus)
+  
 }
 
 #set up colour map
@@ -87,6 +88,7 @@ if(covDetails$Average_Coverage < 10){
   genome(CpGislands.gr) <- NA
   CpGislands.gr <- suppressWarnings(resize(CpGislands.gr, 5000, fix="center"))
   
+  
   #methyldackel output is chr, start, end, % meth, M reads, U reads
   meth.df = fread(bGraph, data.table = FALSE, skip = 1)
   print("Making Meth GRanges")
@@ -104,8 +106,8 @@ if(covDetails$Average_Coverage < 10){
   
   if(opt$genome == "hg38" | opt$genome == "hg19"){
     PMDsegments.gr <- segmentPMDs(m=meth.gr, chr.sel="chr22",
-                                seqLengths=sLengths, num.cores=opt$parallel,
-                                pdfFilename = paste(out_prefix, "_PMD_segmentation.pdf", sep = ""))
+                                  seqLengths=sLengths, num.cores=opt$parallel,
+                                  pdfFilename = paste(out_prefix, "_PMD_segmentation.pdf", sep = ""))
     pdf(paste(out_prefix, "_AlphaDistribution.pdf", sep = ""))
     plotAlphaDistributionOneChr(m=meth.gr, chr.sel="chr22",
                                 num.cores=opt$parallel)
@@ -114,10 +116,10 @@ if(covDetails$Average_Coverage < 10){
                                 num.cores=opt$parallel)
     dev.off()
     BS_genome_type = Hsapiens
-    }else if(opt$genome == "mm10"){
+  }else if(opt$genome == "mm10"){
     PMDsegments.gr <- segmentPMDs(m=meth.gr, chr.sel="chr19",
-                                seqLengths=sLengths, num.cores=opt$parallel,
-                                pdfFilename = paste(out_prefix, "_PMD_segmentation.pdf", sep = ""))
+                                  seqLengths=sLengths, num.cores=opt$parallel,
+                                  pdfFilename = paste(out_prefix, "_PMD_segmentation.pdf", sep = ""))
     pdf(paste(out_prefix, "_AlphaDistribution.pdf", sep = ""))
     plotAlphaDistributionOneChr(m=meth.gr, chr.sel="chr19",
                                 num.cores=opt$parallel)
@@ -226,9 +228,9 @@ if(grepl("NeuN", bGraph)){
   if(any(grepl("NeuNneg", sample_data))){
     NeuNstat = gsub("NeuNneg.*", "NueNnegative", sample_data[grep("NeuN", sample_data)])
   }else{
-    NeuNstat = gsub("NeuNnpos.*", "NueNpostive", sample_data[grep("NeuN", sample_data)])
+    NeuNstat = gsub("NeuNnpos.*|NeuN_.*", "NueNpostive", sample_data[grep("NeuN", sample_data)])
   }
-  sample_data[2] = paste(sample_data[2], NeuNstat, sep = "")
+  sample_data[2] = paste0(sample_data[2], NeuNstat)
 }else{
   sample_data = strsplit(gsub(".*\\/|_sd.*", "", bGraph), "_")[[1]]
 }
@@ -240,6 +242,7 @@ if(tolower(sample_data[1]) == "skin"){
   germ_layer = unique(bodyMap[grep(tolower(sample_data[1]), bodyMap$tissue, ignore.case = TRUE),
                               "germ_layer"])
 }else if(sample_data[1] == "CellLine"){
+  
   germ_layer = unique(bodyMap[grep(tolower(sample_data[2]), bodyMap$tissue, ignore.case = TRUE),
                               "germ_layer"])
 }else{
@@ -249,34 +252,46 @@ if(tolower(sample_data[1]) == "skin"){
 #user QC: Check your sampleID prior to starting!
 if(length(germ_layer) == 0){
   #run will break here and return exit status = 1 if naming is incorrect
-    stop('File-naming is outside of defined convention! Re-name and re-run!')
-  }else{
+  message(paste(Sys.time(), 'Rscript Error: File naming is outside of defined convention! Re-name and re-run!'))
+  quit(save = "no", status = 1)
+}else{
   #fix the occasional issue with grep returning more than one germ_layer
-  if(length(germ_layer) > 1) germ_layer = germ_layer[length(germ_layer)]
-  #convert colours for cancer, fetal or stem cell derived samples
-  if(any(grepl("CML|CLL|ALL|cancer|carcinoma|adenoma|blastoma|Neoplasm|Tumor|Oncocytoma|immortal|glioma", sample_data, ignore.case = TRUE))){
-    germ_layer = paste(germ_layer, "cancer", sep = "_")
-  }else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
-    germ_layer = "Stem"
+  if(length(germ_layer) > 1){
+    if(any(grepl("CML|CLL|ALL|[cC]ancer|[cC]arcinoma|[aA]denoma|[bB]lastoma|[nN]eoplasm|[tT]umor|[oO]ncocytoma|[iI]mmortal|[gG]lioma", sample_data))){
+      germ_layer = paste(germ_layer, "cancer", sep = "_")
+    }else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
+      germ_layer = "Stem"
+    }else{
+      germ_layer = germ_layer[-which(germ_layer == "Stem")]
+      germ_layer = germ_layer[length(germ_layer)]
+    }
   }
-  col = colMap[[intersect(names(colMap), germ_layer)]]
-  tline@color=as.integer(col)
-  print(tline)
-  #now to create the file
-  print("remove lambda and sort")
-  print("...")
-  meth.gr = meth.gr[seqnames(meth.gr) != 'lambda']
-  print("...")
-  meth.gr = sort(meth.gr)
-  print("done")
-  print("Create tmp file")
-  export.bedGraph(meth.gr, "tmp.bedGraph", trackLine=tline)
-  print("done")
-  print("Make TDF")
-  path_to_igf = Sys.which("igvtools")
-  path_to_chrom_size_file = paste0(opt$genomePath, opt$genome, "/", opt$genome, ".chrom.sizes")
-  cmd = paste("igvtools toTDF tmp.bedGraph", tdf_file, path_to_chrom_size_file)
-  system(cmd)
-  print("Tidy Up")
-  file.remove("tmp.bedGraph")
 }
+#convert colours for cancer, fetal or stem cell derived samples
+if(any(grepl("CML|CLL|ALL|[cC]ancer|[cC]arcinoma|[aA]denoma|[bB]lastoma|[nN]eoplasm|[tT]umor|[oO]ncocytoma|[iI]mmortal|[gG]lioma", sample_data))){
+  germ_layer = paste(germ_layer, "cancer", sep = "_")
+}else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
+  germ_layer = "Stem"
+}
+col = colMap[[intersect(names(colMap), germ_layer)]]
+tline@color=as.integer(col)
+print(tline)
+#now to create the file
+print("remove lambda and sort")
+print("...")
+meth.gr = meth.gr[seqnames(meth.gr) != 'lambda']
+print("...")
+meth.gr = sort(meth.gr)
+print("done")
+print("Create tmp file")
+export.bedGraph(meth.gr, "tmp.bedGraph", trackLine=tline)
+print("done")
+print("Make TDF")
+path_to_igf = Sys.which("igvtools")
+path_to_chrom_size_file = paste0(opt$genomePath, opt$genome, "/", opt$genome, ".chrom.sizes")
+cmd = paste("igvtools toTDF tmp.bedGraph", tdf_file, path_to_chrom_size_file)
+system(cmd)
+print("Tidy Up")
+file.remove("tmp.bedGraph")
+
+

@@ -29,4 +29,6 @@ else
   mv *Segmentation* ./MethylSeekR/
   mv $1_AlphaDistribution.pdf ./MethylSeekR/
 fi
+echo 'Compressing all text files'
+find . \( -name "*.txt" -o -name "*.bedGraph" -o -name "*.bed" \) -exec gzip {} \;
 echo 'Cleanup finished'
