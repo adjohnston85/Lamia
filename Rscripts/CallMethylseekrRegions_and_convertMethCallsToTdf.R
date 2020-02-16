@@ -18,34 +18,24 @@ option_list = list(
   make_option(c("-t", "--tissue_map"), type="character", default=NULL, 
               help="location of csv file that maps tissue name to embryonic layer (will be set by Majel)", metavar="character"),
   make_option(c("-p", "--parallel"), type="numeric", default=, 
-<<<<<<< HEAD
-              help="Number of available cores for MethylSeekR - Defaults in Majel to 2*--aligner_threads (when aligner is bismark)", metavar="character")
-=======
               help="Number of available cores for MethylSeekR - Defaults in Majel to 2*--aligner_threads (when aligner is bismark)", metavar="character"),
   make_option(c("-e", "--genomePath"), type="character", 
               help="Path to genome folder", metavar="character")
->>>>>>> origin/develop
-); 
+  ); 
 
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser);
 
 if(opt$genome == "hg38"){
   library(BSgenome.Hsapiens.UCSC.hg38)
-<<<<<<< HEAD
-}else if(opt$genome == "hg19"){
-  library(BSgenome.Hsapiens.UCSC.hg19)
-=======
   sLengths=seqlengths(Hsapiens)
-}else if(opt$genome == "hg19"){
-  library(BSgenome.Hsapiens.UCSC.hg19)
-  sLengths=seqlengths(Hsapiens)
-}else if(opt$genome == "mm10"){
-  library(BSgenome.Mmusculus.UCSC.mm10)
-  sLengths=seqlengths(Mmusculus)
-  
->>>>>>> origin/develop
-}
+  }else if(opt$genome == "hg19"){
+    library(BSgenome.Hsapiens.UCSC.hg19)
+    sLengths=seqlengths(Hsapiens)
+    }else if(opt$genome == "mm10"){
+      library(BSgenome.Mmusculus.UCSC.mm10)
+      sLengths=seqlengths(Mmusculus)
+      }
 
 #set up colour map
 bodyMap = read.csv(opt$tissue_map, header = TRUE, stringsAsFactors = FALSE)
@@ -75,10 +65,7 @@ out_prefix = gsub("_sd_CpG.bedGraph", "", bGraph_name)
 #1st check the coverage, minimum needed is 10x
 covFile = gsub("_CpG.bedGraph", "_coverage.txt", bGraph)
 covDetails = read.delim(covFile, header = TRUE, stringsAsFactors = FALSE, row.names = 1)
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/develop
 if(covDetails$Average_Coverage < 10){
   print("Inadequate Coverage for methylseekR - making placeholder files")
   tmp_files = paste(out_prefix,
@@ -99,12 +86,7 @@ if(covDetails$Average_Coverage < 10){
   CpGislands.gr <- track(query)
   genome(CpGislands.gr) <- NA
   CpGislands.gr <- suppressWarnings(resize(CpGislands.gr, 5000, fix="center"))
-<<<<<<< HEAD
-  sLengths=seqlengths(Hsapiens)
-=======
-  
->>>>>>> origin/develop
-  
+
   #methyldackel output is chr, start, end, % meth, M reads, U reads
   meth.df = fread(bGraph, data.table = FALSE, skip = 1)
   print("Making Meth GRanges")
@@ -118,20 +100,6 @@ if(covDetails$Average_Coverage < 10){
   meth.gr$M = meth.df[,5]
   meth.gr = meth.gr[which(seqnames(meth.gr) %in% as.character(unique(seqnames(meth.gr))[unique(seqnames(meth.gr)) %in% names(sLengths)]))]
   #plot and call PMDs
-  print("Calling PMDs")
-<<<<<<< HEAD
-  PMDsegments.gr <- segmentPMDs(m=meth.gr, chr.sel="chr22",
-                                seqLengths=sLengths, num.cores=opt$parallel,
-                                pdfFilename = paste(out_prefix, "_PMD_segmentation.pdf", sep = ""))
-  pdf(paste(out_prefix, "_AlphaDistribution.pdf", sep = ""))
-  plotAlphaDistributionOneChr(m=meth.gr, chr.sel="chr22",
-                              num.cores=opt$parallel)
-  plotAlphaDistributionOneChr(m=subsetByOverlaps(meth.gr,
-                                                 PMDsegments.gr[values(PMDsegments.gr)$type=="notPMD"]), chr.sel="chr22",
-                              num.cores=opt$parallel)
-  dev.off()
-=======
-  
   if(opt$genome == "hg38" | opt$genome == "hg19"){
     PMDsegments.gr <- segmentPMDs(m=meth.gr, chr.sel="chr22",
                                   seqLengths=sLengths, num.cores=opt$parallel,
@@ -157,7 +125,6 @@ if(covDetails$Average_Coverage < 10){
     dev.off()
     BS_genome_type = Mmusculus
   }
->>>>>>> origin/develop
   tmp_pmd = PMDsegments.gr
   mcols(tmp_pmd) =  NULL
   tmp_pmd$type = mcols(PMDsegments.gr)$type
@@ -183,11 +150,7 @@ if(covDetails$Average_Coverage < 10){
   print("Calling UMR/LMR with PMDs")
   UMRLMRsegments_wPMD.gr <- segmentUMRsLMRs(m=meth.gr, meth.cutoff=m.sel,
                                             nCpG.cutoff=n.sel, PMDs=PMDsegments.gr,
-<<<<<<< HEAD
-                                            num.cores=opt$parallel, myGenomeSeq=Hsapiens,
-=======
                                             num.cores=opt$parallel, myGenomeSeq=BS_genome_type,
->>>>>>> origin/develop
                                             seqLengths=sLengths,
                                             pdfFilename = paste(out_prefix, "_wPMD_UMRsegmentation.pdf", sep = ""))
   plotFinalSegmentation(m=meth.gr, segs=UMRLMRsegments_wPMD.gr,
@@ -217,11 +180,7 @@ if(covDetails$Average_Coverage < 10){
   print("UMR/LMR segmentation")
   UMRLMRsegments.gr <- segmentUMRsLMRs(m=meth.gr, meth.cutoff=m.sel,
                                        nCpG.cutoff=n.sel, 
-<<<<<<< HEAD
-                                       num.cores=opt$parallel, myGenomeSeq=Hsapiens,
-=======
                                        num.cores=opt$parallel, myGenomeSeq=BS_genome_type,
->>>>>>> origin/develop
                                        seqLengths=sLengths,
                                        pdfFilename = paste(out_prefix, "_UMRsegmentation.pdf", sep = ""))
   plotFinalSegmentation(m=meth.gr, segs=UMRLMRsegments.gr,
@@ -265,15 +224,9 @@ if(grepl("NeuN", bGraph)){
   if(any(grepl("NeuNneg", sample_data))){
     NeuNstat = gsub("NeuNneg.*", "NueNnegative", sample_data[grep("NeuN", sample_data)])
   }else{
-<<<<<<< HEAD
-    NeuNstat = gsub("NeuNnpos.*", "NueNpostive", sample_data[grep("NeuN", sample_data)])
-  }
-  sample_data[2] = paste(sample_data[2], NeuNstat, sep = "")
-=======
     NeuNstat = gsub("NeuNnpos.*|NeuN_.*", "NueNpostive", sample_data[grep("NeuN", sample_data)])
   }
   sample_data[2] = paste0(sample_data[2], NeuNstat)
->>>>>>> origin/develop
 }else{
   sample_data = strsplit(gsub(".*\\/|_sd.*", "", bGraph), "_")[[1]]
 }
@@ -285,13 +238,7 @@ if(tolower(sample_data[1]) == "skin"){
   germ_layer = unique(bodyMap[grep(tolower(sample_data[1]), bodyMap$tissue, ignore.case = TRUE),
                               "germ_layer"])
 }else if(sample_data[1] == "CellLine"){
-<<<<<<< HEAD
-  tmp_sample = unique(sample_data[which(tolower(sample_data) %in% bodyMap$tissue)])[1]
-  germ_layer = unique(bodyMap[grep(tolower(tmp_sample), bodyMap$tissue, ignore.case = TRUE),
-=======
-  
   germ_layer = unique(bodyMap[grep(tolower(sample_data[2]), bodyMap$tissue, ignore.case = TRUE),
->>>>>>> origin/develop
                               "germ_layer"])
 }else{
   germ_layer = unique(bodyMap[grep(gsub("Gland|Lobe","",sample_data[1]), bodyMap$simple_tissue, ignore.case = TRUE),
@@ -300,37 +247,6 @@ if(tolower(sample_data[1]) == "skin"){
 #user QC: Check your sampleID prior to starting!
 if(length(germ_layer) == 0){
   #run will break here and return exit status = 1 if naming is incorrect
-<<<<<<< HEAD
-    stop('File-naming is outside of defined convention! Re-name and re-run!')
-  }else{
-  #fix the occasional issue with grep returning more than one germ_layer
-  if(length(germ_layer) > 1) germ_layer = germ_layer[length(germ_layer)]
-  #convert colours for cancer, fetal or stem cell derived samples
-  if(any(grepl("CML|CLL|ALL|cancer|carcinoma|adenoma|blastoma|Neoplasm|Tumor|Oncocytoma|immortal|glioma", sample_data, ignore.case = TRUE))){
-    germ_layer = paste(germ_layer, "cancer", sep = "_")
-  }else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
-    germ_layer = "Stem"
-  }
-  col = colMap[[intersect(names(colMap), germ_layer)]]
-  tline@color=as.integer(col)
-  print(tline)
-  #now to create the file
-  print("remove lambda and sort")
-  print("...")
-  meth.gr = meth.gr[seqnames(meth.gr) != 'lambda']
-  print("...")
-  meth.gr = sort(meth.gr)
-  print("done")
-  print("Create tmp file")
-  export.bedGraph(meth.gr, "tmp.bedGraph", trackLine=tline)
-  print("done")
-  print("Make TDF")
-  cmd = paste("igvtools toTDF tmp.bedGraph", tdf_file, opt$genome)
-  system(cmd)
-  print("Tidy Up")
-  file.remove("tmp.bedGraph")
-}
-=======
   message(paste(Sys.time(), 'Rscript Error: File naming is outside of defined convention! Re-name and re-run!'))
   quit(save = "no", status = 1)
 }else{
@@ -372,6 +288,3 @@ cmd = paste("igvtools toTDF tmp.bedGraph", tdf_file, path_to_chrom_size_file)
 system(cmd)
 print("Tidy Up")
 file.remove("tmp.bedGraph")
-
->>>>>>> origin/develop
-
