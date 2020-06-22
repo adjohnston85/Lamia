@@ -389,7 +389,7 @@ def calculateCoverage(input_file, output_file, logger, logger_mutex):
      os.system(cmd)
      covFile = pd.read_table(output_file[0], header=None, names=['chr','depth','base_count','chr_size_bp','fraction'])
      genomeCov = covFile[covFile['chr'] == 'genome']
-     averageCov = sum(genomeCov['depth'] * genomeCov['base_count'])/genomeCov.ix[genomeCov.index[0],'chr_size_bp']
+     averageCov = sum(genomeCov['depth'] * genomeCov['base_count'])/genomeCov.loc[genomeCov.index[0],'chr_size_bp']
      pd.DataFrame(data={'sample_name':options.sample_name,'Genome':options.genome, 'Average_Coverage':averageCov}, index=['coveragedetails']).to_csv(path_or_buf=output_file[1], sep = '\t')
      checkOutput(output_file, "calculateCoverage")
      

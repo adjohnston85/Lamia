@@ -47,7 +47,8 @@ colMap = list('Mesoderm' = as.matrix(c(231,138,195)),
               'Placenta' = as.matrix(c(205,92,92)),
               'Mesoderm_cancer' = as.matrix(c(190,113,160)),
               'Endoderm_cancer' = as.matrix(c(103,117,148)),
-              'Ectoderm_cancer' = as.matrix(c(0,160,65)))
+              'Ectoderm_cancer' = as.matrix(c(0,160,65)),
+              'Plasma_cancer' = as.matrix(c(204, 173, 0)))
 colMap = lapply(colMap, function(x){
   rownames(x) = c("red", "green", "blue")
   return(x)}
@@ -268,7 +269,7 @@ if(any(grepl("CML|CLL|ALL|[cC]ancer|[cC]arcinoma|[aA]denoma|[bB]lastoma|[nN]eopl
 }else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
   germ_layer = "Stem"
 }
-col = colMap[[intersect(names(colMap), germ_layer)]]
+col = colMap[[germ_layer]]
 tline@color=as.integer(col)
 print(tline)
 #now to create the file
