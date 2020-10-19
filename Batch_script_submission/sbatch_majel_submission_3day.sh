@@ -19,14 +19,13 @@ module load python/3.7.2
 
 SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission/"
 MAJEL_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/"
-SCRATCH_DIR="/scratch1/loc100"
 BATCH_SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission/"
 
-python3 $MAJEL_DIR/Majel.py --data_dir $SCRATCH_DIR/$1/data/ --genome hg38 --sample_name $1 --genome_path /datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/ -v 3 -L $SCRATCH_DIR/$1/$1_majel.log --aligner_threads 6 &> slurm_majel_stdout.log
+python3 $MAJEL_DIR/Majel.py --data_dir $2/$1/data/ --genome hg38 --sample_name $1 --genome_path /datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/ -v 3 -L $2/$1/$1_majel.log --aligner_threads 6 &> slurm_majel_stdout.log
 if grep -q "Completed Task = 'methylseekrAndTDF'" slurm_majel_stdout.log
 then 
   $MAJEL_DIR/majel_cleanup.sh $1 &> slurm_cleanup_stdout.log
   rm -r ./data
   rm *fastq.gz
-  sbatch $SCRIPT_DIR/sbatch_io_SyncProcessedData_PRJNA494975.sh $1
+  sbatch $SCRIPT_DIR/sbatch_io_SyncProcessedData_flex.sh $1 $2 $3
 fi

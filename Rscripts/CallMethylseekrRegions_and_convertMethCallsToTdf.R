@@ -81,12 +81,23 @@ if(covDetails$Average_Coverage < 10){
 }else{
   #load annotations
   print("Getting genome info")
-  session <- browserSession()
-  genome(session) <- opt$genome
-  query <- ucscTableQuery(session, "cpgIslandExt")
-  CpGislands.gr <- track(query)
+  # session <- browserSession()
+  # genome(session) <- opt$genome
+  # query <- ucscTableQuery(session, "cpgIslandExt")
+  # CpGislands.gr <- track(query)
+  island_path = paste0(opt$genomePath,"/", opt$genome, "/", 
+                       opt$genome, "_CpGislands.txt")
+  if(file.exists(island_path)){
+    CpGislands.gr = import.bed(island_path)
+  }else{
+    message(paste(Sys.time(), 'Rscript Error: CpG Island file is missing from genome directory!'))
+    quit(save = "no", status = 1)
+  }
+  
   genome(CpGislands.gr) <- NA
-  CpGislands.gr <- suppressWarnings(resize(CpGislands.gr, 5000, fix="center"))
+  CpGislands.gr <- suppressWarnings(resize(CpGislands.gr, 
+                                           5000, 
+                                           fix="center"))
 
   #methyldackel output is chr, start, end, % meth, M reads, U reads
   meth.df = fread(bGraph, data.table = FALSE, skip = 1)
