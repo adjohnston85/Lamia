@@ -37,6 +37,9 @@ user generated data. This can also be prevented by good data practices (e.g. sof
 Majel makes use of the Python pipelining module ruffus (see [ruffus docs](http://www.ruffus.org.uk/)). Expect a long walltime on\
 high coverage datasets (>5 days).\
 \
+Genome data files (e.g. indexes and CpG islands) will need to be created before running. These should be stored at a logical\
+path in a folder named after the genome build. CpG island files will be USCS track files (bed like) names [GENOME]_CpGislands.txt.\
+
 Majel help is available using the '--help' flag.
 
 Basic usage:\
