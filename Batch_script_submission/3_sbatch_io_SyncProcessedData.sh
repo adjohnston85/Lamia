@@ -4,7 +4,6 @@
 #SBATCH --time=08:00:00
 #SBATCH --output=MappedData_rsync.out
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=andrew.johnston@csiro.au
 
 help='false'
 
@@ -40,6 +39,10 @@ then
     exit 1
 fi
 
+SYNC_FROM="$(cd $SYNC_FROM && pwd)"
 PROJECT_FOLDER=$(basename "$(dirname $SYNC_FROM)")
 
-eval "rsync -avzh --whole-file --remove-source-files --no-g --chmod=Dg=rwxs $SYNC_FROM $SYNC_TO/$PROJECT_FOLDER/ &> SyncProcessedData_stdout.log"
+SUBMISSION="rsync -avzh --whole-file --remove-source-files --no-g --chmod=Dg=rwxs $SYNC_FROM $SYNC_TO/$PROJECT_FOLDER/ &>> slurm_rsync_stdout.log"
+TIME=$(date '+%B %d %T %Z %Y')
+printf '%s\n\n' "$TIME> $SUBMISSION"  > slurm_rsync_stdout.log
+eval $SUBMISSION
