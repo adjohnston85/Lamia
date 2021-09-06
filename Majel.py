@@ -44,6 +44,8 @@ parser.add_argument("--aligner_threads", help="Speed up alignment by increasing 
                           default=5)
 parser.add_argument("--pbat", action='store_true',
                           help="Specify when aligning pbat library")
+parser.add_argument("--non_directional", action='store_true',
+                          help="Specify to instruct Bismark to use all four alignment outputs")
 parser.add_argument("--is_paired_end",help = "Is the libarary paired end (defaults to True)",
                           default="True")
 parser.add_argument("--genome_path",help = "Path to genome folder, must contain a --genome directory",
@@ -146,12 +148,10 @@ def choose_alignCommand(target_genome, nThreads, fq_files, base_name, isPaired):
 def aligner_select(target_genome, nThreads, fq_files, base_name, pairedReads):
     aligners = choose_alignCommand(target_genome, nThreads, fq_files, base_name, pairedReads)
     align_cmd = aligners.get(options.aligner)
-    if options.pbat == 'True':
-        align_cmd = align_cmd + ' ' + getPBAT()
-        logger.log(MESSAGE,  timestamp('Aligning in PBAT mode'))
-        logger.log(MESSAGE,  timestamp("Align Command - '%s'" % align_cmd))
+    if options.non_directional == True or options.pbat == True:
+        align_cmd = align_cmd + ' ' + getDirection()
+    logger.log(MESSAGE,  timestamp("Align Command - '%s'" % align_cmd))
     return align_cmd
-
 
 def bamMerge(bam_files, file_prefix):
      thread_factor = 1
@@ -175,10 +175,16 @@ def bam_name_fix(base_name):
      return fix_cmd
 
 
-def getPBAT():
-     aligners={'bismark':'--pbat',
-                  'walt':'-P'}
-     return aligners.get(options.aligner)
+def getDirection():
+    if options.non_directional == True:
+        aligners={'bismark':'--non_directional',
+                     'walt':''}
+        logger.log(MESSAGE,  timestamp('Aligning in NON_DIRECTIONAL mode'))
+    elif options.pbat == True:
+        aligners={'bismark':'--pbat',
+                     'walt':'-P'}
+        logger.log(MESSAGE,  timestamp('Aligning in PBAT mode'))
+    return aligners.get(options.aligner)
 
 
 def detect_input_type(input_files):
