@@ -17,6 +17,7 @@ check_argument() {
 set_defaults() {
     PROJECT_DIR=$(dirname $PWD)
     SAMPLE_NAME=$(basename $PWD)
+    CONCURRENT_JOBS=5
 
     MAJEL_TIME="04-00"
     MAJEL_MEM="60gb"
@@ -60,6 +61,9 @@ get_arguments() {
         --sample-file=*)
           SAMPLE_FILE="${1#*=}"
           ;;
+        --concurrent-jobs=*)
+          CONCURRENT_JOBS="${1#*=}"
+          ;;
         --sra-array=*)
           if [[ -z $SRA_ARRAY ]]; then
               SRA_ARRAY="${1#*=}"
@@ -95,7 +99,7 @@ get_arguments() {
           MAJEL_DIR="${1#*=}"
           ;;
         --majel-args=*)
-          MAJEL_ARGS="${1#*=} "
+          MAJEL_ARGS="${1#*=}"
           ;;
         --skip-prompt*)
           SKIP_PROMPT="${1#*t}"
@@ -113,6 +117,12 @@ get_arguments() {
 job_submission() {
     check_argument "project-dir" $PROJECT_DIR
     check_argument "sample-name" $SAMPLE_NAME
+
+    if [[ ! -z $SAMPLE_FILE ]]; then
+        echo "--sample-file=$SAMPLE_FILE"
+        echo "--concurrent-jobs=$CONCURRENT_JOBS"
+    fi
+
     check_argument "mail-user" $EMAIL
     
     #check if mandatory /data directory exists in path, if not make it
@@ -133,7 +143,10 @@ job_submission() {
         fi
     else
         SRA_ARRAY=$SRA_ARRAY
-        check_argument "sra-array" "\"$SRA_ARRAY\""
+        if [[ $SRA_ARRAY != *"}"* ]]; then
+            SRA_ARRAY="\"$(echo $SRA_ARRAY | tr -d '"')\""
+        fi
+        check_argument "sra-array" "$SRA_ARRAY"
     fi
 
     cd $PROJECT_DIR/$SAMPLE_NAME
@@ -147,7 +160,11 @@ job_submission() {
     check_argument "genome" $GENOME
     check_argument "genome-path" $GENOME_PATH
     check_argument "majel-dir" $MAJEL_DIR
-    echo "--majel-args=\"${MAJEL_ARGS}\""
+    if [[ ! -z $MAJEL_ARGS ]]; then
+        MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
+        echo "--majel-args=\"${MAJEL_ARGS}\""
+    fi
+
 
     LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/slurm_submission_stdout.log
     SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
@@ -189,7 +206,7 @@ job_submission() {
         printf '%s\n\n' "$TIME> job was submitted to slurm" | tee -a $LOG_FILE
         printf '~%.0s' {1..200} | tee -a $LOG_FILE
         printf '\n\n'
-#        eval $SUBMISSION
+    #    eval $SUBMISSION
     else
         printf '%s\n\n' "$TIME> job was not submitted to slurm" | tee -a $LOG_FILE
     fi
@@ -227,6 +244,7 @@ if [ -z $HELP ]; then
     printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False"'
     printf '%s\n' '  --skip-prompt          skips verification step - use when user input is not possible (i.e. when submitting script with sbatch)'
+    printf '%s\n' '  --concurrent-jobs      if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted to slurm from the <sample-file> at any one time'
     printf '\n'
     exit 1
 fi
@@ -239,18 +257,51 @@ if [[ ! -z $SAMPLE_FILE ]]; then
         SKIP_PROMPT='true'
 
         CSV_FILE=$(cat $SAMPLE_FILE | tr "\\t" ",")
+        JOB_ARRAY=()
         while read line
         do
             CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"
             set_defaults
             SAMPLE_NAME=$(IFS=_ ; echo "${CSV[*]:0:4}" | sed 's/ [[:lower:]]/\U&/g' | tr -d ' ')
             if [[ $SAMPLE_NAME != "Tissue_Sub-Tissue_DiseaseStatus_SampleInfo" ]]; then
-                ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"$(echo ${CSV[6]} | tr -d '"'); "
+                ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"${CSV[6]}; "
                 get_arguments "$@"
                 get_arguments "${ARGS[@]}"
+
+                if [[ -z $SRA_ARRAY ]]; then
+                    SRA_ARRAY="\"$(echo ${CSV[4]} | tr ';' ' ')\""
+                fi
+
                 job_submission
-            fi           
+                JOB_ARRAY+=("$PROJECT_DIR/$SAMPLE_NAME/MethylSeekR")
+            fi 
+          
+            i=0
+
+            if [[ ${#JOB_ARRAY[@]} -ge $CONCURRENT_JOBS ]]; then
+                printf '%s\n\n' "The maximum number of concurrent Majel.py jobs (--concurrent-jobs=$CONCURRENT_JOBS) has been reached. Waiting for a job to finish before continung with slurm submissions." | tee -a $LOG_FILE
+            fi
+
+echo ${JOB_ARRAY[@]}
+
+            while [[ ${#JOB_ARRAY[@]} -gt $CONCURRENT_JOBS ]]
+            do
+                if [[ -d ${JOB_ARRAY[i]} ]]; then
+                    unset JOB_ARRAY[i]
+                    JOB_ARRAY=("${JOB_ARRAY[@]}")
+                fi
+            
+                ((i++))
+            
+                if [[ $i -ge ${#JOB_ARRAY[@]} ]]; then
+                    i=0
+                fi
+            sleep 5
+            done
+
         done <<<"$CSV_FILE"
+
+        printf '%s\n\n' "All jobs from $SAMPLE_FILE have been submitted. Exiting submission pipeline." | tee -a $LOG_FILE
 
     else
         echo "Error: the file \"$SAMPLE_FILE\" does not exist. Exiting pipeline"
