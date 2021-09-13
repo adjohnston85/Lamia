@@ -81,7 +81,7 @@ while [ $# -gt 0 ]; do
       MAJEL_DIR="${1#*=}"
       ;;
     --majel-args=*)
-      MAJEL_ARGS="${1#*=} "
+      MAJEL_ARGS="${1#*=}"
       ;;
     --help*)
       help="${1#*p}"
@@ -135,16 +135,9 @@ if [ ! -f $LOG_FILE ]; then
     > $LOG_FILE
 fi
 
-check_argument "majel-time" $MAJEL_TIME
-check_argument "majel-ntaskts" $MAJEL_NTASKS
-check_argument "majel-mem" $MAJEL_MEM
-check_argument "rsync-time" $RSYNC_TIME
-check_argument "rsync-mem" $RSYNC_MEM
-check_argument "aligner-threads" $ALIGNER_THREADS
-check_argument "genome" $GENOME
-check_argument "genome-path" $GENOME_PATH
-check_argument "majel-dir" $MAJEL_DIR
-echo "--majel-args=\"${MAJEL_ARGS}\""
+if [[ ! -z $MAJEL_ARGS ]]; then
+    MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
+fi
 
 SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
 
@@ -155,7 +148,7 @@ fi
 
 cd $DATA_DIR
 SRA_ARRAY=($SRA_ARRAY)
-printf '%s\n' "${SRA_ARRAY[@]}" | parallel -j20 'eval "wget -O {}'.sra' $(srapath {})"'
+printf '%s\n' "${SRA_ARRAY[@]}" | parallel -j20 'eval "wget -O {}.sra $(srapath {})"' &> $PROJECT_DIR/$SAMPLE_NAME/slurm_SRA_download.log
 
 COUNT=0
 for SRA in ${SRA_ARRAY[@]}; do
