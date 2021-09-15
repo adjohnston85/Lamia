@@ -3,7 +3,7 @@
 HELP='false'
 SKIP_PROMPT='false'
 
-#function checks if mandatory arguments have been set
+#function checks if arguments have been set, exit if values are empty
 check_argument() {
     if [[ -z "$2" ]]; then
         echo "Error: --${1}= argument not set"
@@ -15,21 +15,28 @@ check_argument() {
 
 #function to set or reset default values
 set_defaults() {
+    
+    #by default this script can be run from a SAMPLE directory within a PROJECT directory ( e.g. /path/to/PROJECT/SAMPLE )
     PROJECT_DIR=$(dirname $PWD)
     SAMPLE_NAME=$(basename $PWD)
     CONCURRENT_JOBS=5
 
-    MAJEL_TIME="04-00"
-    MAJEL_MEM="60gb"
-    MAJEL_NTASKS="20"
+    MAJEL_TIME='04-00'
+    MAJEL_MEM='60gb'
+    MAJEL_NTASKS='20'
 
-    RSYNC_TIME="08:00:00"
-    RSYNC_MEM="4gb"
+    RSYNC_TIME='08:00:00'
+    RSYNC_MEM='4gb'
 
     GENOME='hg38'
     GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
     ALIGNER_THREADS='6'
-    MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
+
+    #fetches the directory from which this script is located and run
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+    #the Majel.py script is located one directory up from to bash scripts directory
+    MAJEL_DIR="$(dirname "$SCRIPT_DIR")"
+
     unset SRA_ARRAY
     unset MAJEL_ARGS
 }
@@ -117,16 +124,22 @@ get_arguments() {
 job_submission() {
 
     LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/slurm_submission_stdout.log
+
+    #check the values mandatory arguments 
     check_argument "project-dir" $PROJECT_DIR
     check_argument "sample-name" $SAMPLE_NAME
 
+    #print info on the sample file used to run multiple Majel jobs at once
     if [[ ! -z $SAMPLE_FILE ]]; then
         echo "--sample-file=$SAMPLE_FILE"
         echo "--concurrent-jobs=$CONCURRENT_JOBS"
     fi
-
-    check_argument "mail-user" $EMAIL
-
+    
+    #check if this pipeline is being run on cluster with a slurm submission system, if so specifying an email is mandatory
+    if command -v slurm; then
+        check_argument "mail-user" $EMAIL
+    fi
+        
     #check if mandatory /data directory exists in path, if not make it
     DATA_DIR="$PROJECT_DIR/$SAMPLE_NAME/data"
     if [[ ! -d $DATA_DIR ]]; then
@@ -144,15 +157,20 @@ job_submission() {
             exit 1
         fi
     else
-        SRA_ARRAY=$SRA_ARRAY
         if [[ $SRA_ARRAY != *"}"* ]]; then
+            #removes potential " arifacts that can arise when --sra-array= is specified in the SAMPLE_FILE as a string series
             SRA_ARRAY="\"$(echo $SRA_ARRAY | tr -d '"')\""
+        else
+            #converts a specified range ( e.g. --sra-array=SRR1{1..3} ) into a string series ( e.g. --sra-array="SRR1 SRR2 SRR3" )
+            SRA_ARRAY=$SRA_ARRAY
         fi
+
         check_argument "sra-array" "$SRA_ARRAY"
     fi
 
     cd $PROJECT_DIR/$SAMPLE_NAME
 
+    #print the values of all arguments for user to examine
     check_argument "majel-time" $MAJEL_TIME
     check_argument "majel-ntaskts" $MAJEL_NTASKS
     check_argument "majel-mem" $MAJEL_MEM
@@ -162,33 +180,42 @@ job_submission() {
     check_argument "genome" $GENOME
     check_argument "genome-path" $GENOME_PATH
     check_argument "majel-dir" $MAJEL_DIR
+    
+    #add space after additional majel arguments, if they exist
     if [[ ! -z $MAJEL_ARGS ]]; then
         MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
     fi
     
+    #prints MAJEL_ARGS values without checking for existance (this argument is not required for subsequent steps)
     echo "--majel-args=\"${MAJEL_ARGS}\"" | tee -a $LOG_FILE
 
-    SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
+    #print time and script inputs
     TIME=$(date '+%B %d %T %Z %Y')
     printf '%s\n' "$TIME> $BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS \
 --majel-mem=$MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --aligner-threads=$ALIGNER_THREADS --genome=$GENOME --genome-path=$GENOME_PATH \
 --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --sra-array=\"$SRA_ARRAY\"" > $LOG_FILE
 
     if [[ -z $SRA_ARRAY ]]; then
+        #set job submission variable for if --sra-array= was not declared (skips SRA download script)
         SUBMISSION="sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} \
 --mail-user=$EMAIL $SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR \
 --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH \
 --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" &>> $LOG_FILE"
     else
+        #convert string series to proper array
         TMP_ARRAY=($SRA_ARRAY)
         LEN_ARRAY=$(expr ${#TMP_ARRAY[@]} - 1)
+        #calculate number of cores based on number of SRA files to be downloaded (5 file downloads per core, as advised by IMT)
         CORES=$(($LEN_ARRAY/5+1))
+ 
+        ##set job submission variable for if --sra-array= was declared
         SUBMISSION="sbatch --job-name=SRA_DL:${SAMPLE_NAME} --mail-user=$EMAIL --ntasks-per-node=$CORES $SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh \
 --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --sra-array=$SRA_ARRAY --sample-name=$SAMPLE_NAME \
 --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME \
 --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" &>> $LOG_FILE"
     fi
 
+    #print job parameters and sbatch submission for user to check
     printf '\n%s\n\n' "These parameters will result in the following slurm submission:" | tee -a $LOG_FILE
     printf '%s\n\n' "$SUBMISSION" | tee -a $LOG_FILE
 
@@ -197,11 +224,13 @@ job_submission() {
 --genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}\
 -v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log"
 
+    #skip user confirmation step if --skip-promt argument was set
     if [[ $SKIP_PROMPT == "false" ]]; then
         read -p "Would you like to continue?(Y/N)" -n 1 -r
         printf '\n'
     fi
 
+    #print confirmation of user input
     TIME=$(date '+%B %d %T %Z %Y')
     if [[ $REPLY =~ ^[Yy]$ ]] || [[ $SKIP_PROMPT != 'false' ]]; then
         printf '%s\n\n' "$TIME> job was submitted to slurm" | tee -a $LOG_FILE
@@ -213,6 +242,7 @@ job_submission() {
     fi
 }
 
+#intilize argument variables
 set_defaults
 get_arguments "$@"
 
@@ -253,6 +283,8 @@ if [ -z $HELP ]; then
     exit 1
 fi
 
+#check if SAMPLE_FILE was declared and if so run through this file in a job submission loop, 
+#pauses when maximum number of concurrent jobs is reached and waits for a job to finished before submitting another
 if [[ ! -z $SAMPLE_FILE ]]; then
     if [[ -f $SAMPLE_FILE ]]; then
         SKIP_PROMPT='true'
@@ -261,8 +293,9 @@ if [[ ! -z $SAMPLE_FILE ]]; then
         JOB_ARRAY=()
         while read line
         do
-            CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"
             set_defaults
+
+            CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"
             SAMPLE_NAME=$(IFS=_ ; echo "${CSV[*]:0:4}" | sed 's/ [[:lower:]]/\U&/g' | tr -d ' ')
             if [[ $SAMPLE_NAME != "Tissue_Sub-Tissue_DiseaseStatus_SampleInfo" ]]; then
                 ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"${CSV[6]}; "
@@ -308,5 +341,6 @@ if [[ ! -z $SAMPLE_FILE ]]; then
         echo "Error: the file \"$SAMPLE_FILE\" does not exist. Exiting pipeline"
     fi
 else
+    #submit a single job if SAMPLE_FILE was not declared
     job_submission
 fi
