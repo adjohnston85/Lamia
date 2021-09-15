@@ -39,6 +39,7 @@ set_defaults() {
 
     unset SRA_ARRAY
     unset MAJEL_ARGS
+    unset SBATCH_PREFIX
 }
 
 
@@ -123,29 +124,30 @@ get_arguments() {
 
 job_submission() {
 
-    LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/slurm_submission_stdout.log
+    #check if mandatory /data directory exists in path, if not make it
+    SAMPLE_DIR="$PROJECT_DIR/$SAMPLE_NAME"
+    if [[ ! -d "$SAMPLE_DIR/data" ]]; then
+        mkdir -p "$SAMPLE_DIR/data"
+    fi
 
-    #check the values mandatory arguments 
+    LOG_FILE="$SAMPLE_DIR/slurm_submission_stdout.log"
+    touch "$LOG_FILE"
+
+    #check the values of mandatory arguments 
     check_argument "project-dir" $PROJECT_DIR
     check_argument "sample-name" $SAMPLE_NAME
 
-    #print info on the sample file used to run multiple Majel jobs at once
+    #print info on the SAMPLE_FILE used to run multiple Majel jobs at once
     if [[ ! -z $SAMPLE_FILE ]]; then
         echo "--sample-file=$SAMPLE_FILE"
         echo "--concurrent-jobs=$CONCURRENT_JOBS"
     fi
     
     #check if this pipeline is being run on cluster with a slurm submission system, if so specifying an email is mandatory
-    if command -v slurm; then
+    if hash slurm; then
         check_argument "mail-user" $EMAIL
     fi
         
-    #check if mandatory /data directory exists in path, if not make it
-    DATA_DIR="$PROJECT_DIR/$SAMPLE_NAME/data"
-    if [[ ! -d $DATA_DIR ]]; then
-        mkdir -p $DATA_DIR
-    fi
-
     #covert path variable to full path (i.e. ./destionation -> /full/path/to/destionation)
     PROJECT_DIR="$(cd $PROJECT_DIR && pwd)"
 
@@ -196,11 +198,14 @@ job_submission() {
 --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --sra-array=\"$SRA_ARRAY\"" > $LOG_FILE
 
     if [[ -z $SRA_ARRAY ]]; then
+        if hash slurm; then
+            SBATCH_PREFIX="sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL"
+        fi
+         
         #set job submission variable for if --sra-array= was not declared (skips SRA download script)
-        SUBMISSION="sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} \
---mail-user=$EMAIL $SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR \
+        SUBMISSION="$SBATCH_PREFIX $SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR \
 --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH \
---majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" &>> $LOG_FILE"
+--majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\""
     else
         #convert string series to proper array
         TMP_ARRAY=($SRA_ARRAY)
@@ -208,11 +213,14 @@ job_submission() {
         #calculate number of cores based on number of SRA files to be downloaded (5 file downloads per core, as advised by IMT)
         CORES=$(($LEN_ARRAY/5+1))
  
+        if hash slurm; then
+            SBATCH_PREFIX="sbatch --job-name=SRA_DL:${SAMPLE_NAME} --mail-user=$EMAIL --ntasks-per-node=$CORES"
+        fi
+
         ##set job submission variable for if --sra-array= was declared
-        SUBMISSION="sbatch --job-name=SRA_DL:${SAMPLE_NAME} --mail-user=$EMAIL --ntasks-per-node=$CORES $SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh \
---majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --sra-array=$SRA_ARRAY --sample-name=$SAMPLE_NAME \
---project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME \
---genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" &>> $LOG_FILE"
+        SUBMISSION="$SBATCH_PREFIX $SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS \
+--majel-mem=$MAJEL_MEM --sra-array=$SRA_ARRAY --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME \
+--rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\""
     fi
 
     #print job parameters and sbatch submission for user to check
@@ -230,13 +238,16 @@ job_submission() {
         printf '\n'
     fi
 
-    #print confirmation of user input
+    #confirmation of user input
     TIME=$(date '+%B %d %T %Z %Y')
     if [[ $REPLY =~ ^[Yy]$ ]] || [[ $SKIP_PROMPT != 'false' ]]; then
         printf '%s\n\n' "$TIME> job was submitted to slurm" | tee -a $LOG_FILE
-        eval $SUBMISSION
-        printf '~%.0s' {1..150} | tee -a $LOG_FILE
-        printf '\n\n' | tee -a $LOG_FILE
+        
+        #submit job
+        eval $SUBMISSION | tee -a $LOG_FILE
+        printf '\n' | tee -a $LOG_FILE
+        printf '~%.0s' {1..150}
+        printf '\n\n'
     else
         printf '%s\n\n' "$TIME> job was not submitted to slurm" | tee -a $LOG_FILE
     fi
@@ -313,14 +324,15 @@ if [[ ! -z $SAMPLE_FILE ]]; then
             i=0
 
             if [[ ${#JOB_ARRAY[@]} -ge $CONCURRENT_JOBS ]]; then
-                printf '%s\n\n' "The maximum number of concurrent Majel.py jobs (--concurrent-jobs=$CONCURRENT_JOBS) has been reached. Waiting for a job to finish before continung with slurm submissions." | tee -a $LOG_FILE
+                printf '%s\n\n' "The maximum number of concurrent Majel.py jobs (--concurrent-jobs=$CONCURRENT_JOBS) has been reached. Waiting for a job to finish before continung with slurm submissions."
             fi
 
             while [[ ${#JOB_ARRAY[@]} -ge $CONCURRENT_JOBS ]]
             do
-                if grep -q 'methylseekrAndTDF' ${JOB_ARRAY[i]}/slurm_majel_stdout.log \
-                || grep -q 'methylseekrAndTDF' ${JOB_ARRAY[i]}/slurm_submission_stdout.log \
-                || grep -q 'Error:' ${JOB_ARRAY[i]}/slurm_submission_stdout.log; then
+                if [[ -f ${JOB_ARRAY[i]}/slurm_rsync_stdout.log ]] \
+                || grep -q -s 'methylseekrAndTDF' ${JOB_ARRAY[i]}/slurm_majel_stdout.log \
+                || grep -q -s 'methylseekrAndTDF' ${JOB_ARRAY[i]}/slurm_submission_stdout.log \
+                || grep -q -s 'Error:' ${JOB_ARRAY[i]}/slurm_submission_stdout.log; then
                     unset JOB_ARRAY[i]
                     JOB_ARRAY=("${JOB_ARRAY[@]}")
                 fi
@@ -335,7 +347,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
 
         done <<<"$CSV_FILE"
 
-        printf '%s\n\n' "All jobs from $SAMPLE_FILE have been submitted. Exiting submission pipeline." | tee -a $LOG_FILE
+        printf '%s\n\n' "All jobs from $SAMPLE_FILE have been submitted. Exiting submission pipeline."
 
     else
         echo "Error: the file \"$SAMPLE_FILE\" does not exist. Exiting pipeline"
