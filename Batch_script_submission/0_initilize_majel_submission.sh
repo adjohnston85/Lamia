@@ -39,6 +39,9 @@ check_argument() {
    if [[ -z "$2" ]]; then
         printf '%s\n\n' "Error: --${1}= argument not set" | tee -a $LOG_FILE
 	FAIL='true'
+        if [[ $SINGLE_JOB == 'true' ]]; then
+            exit 1
+        fi
    fi
    printf '%s\n' "--${1}=$2" | tee -a $LOG_FILE $PARAMETERS_FILE
 }
@@ -166,7 +169,6 @@ job_submission() {
 
 	    for FILE in $FILES
             do
-                echo $(basename $FILE)
 		ln -s $FILE $PROJECT_DIR/$SAMPLE_NAME/data/$(basename $FILE)
             done
 
@@ -271,6 +273,7 @@ job_submission() {
             printf '%s\n\n' "$TIME> job submission failed due to an error" | tee -a $LOG_FILE
             unset FAIL
 	fi
+        exit 1
     fi
         
     printf '\n' | tee -a $LOG_FILE
@@ -366,7 +369,7 @@ submission_cycle() {
     do
         completion_check
        
-        if [[ $CHECK='true' ]]; then
+        if [[ $CHECK == 'true' ]]; then
             
             SAMPLE_NAME=$(basename ${SAMPLE_ARRAY[i]})
 	    PROJECT_DIR=$(dirname ${SAMPLE_ARRAY[i]})
@@ -415,7 +418,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
     if [[ -f $SAMPLE_FILE ]]; then
         SKIP_PROMPT='true'
 
-        CSV_FILE=$(cat $SAMPLE_FILE | tr "\\t" "," | sed 's/ [[:lower:]]/\U&/g')
+        CSV_FILE=$(cat $SAMPLE_FILE | tr "\\t" ",")
         SAMPLE_ARRAY=()
 	PROJECT_ARRAY=()
 	CSV_ARRAY=()
@@ -424,8 +427,9 @@ if [[ ! -z $SAMPLE_FILE ]]; then
         do
             set_defaults
 
-	    CSV=(); while read -rd,; do CSV+=("$(echo "${REPLY^}")"); done <<<"$line,"
-            SAMPLE_NAME=$(IFS=_ ; echo "${CSV[*]:0:4}" | tr -d ' ')
+	    CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"
+            SAMPLE_NAME=$(IFS=_ ; CELLS="${CSV[*]:0:4}"; echo "${CELLS^}" | sed 's/ [[:lower:]]/\U&/g' | tr -d ' ' | sed 's/_[[:lower:]]/\U&/g')
+            
             if [[ $SAMPLE_NAME != "Tissue_Sub-Tissue_DiseaseStatus_SampleInfo" ]]; then
                 ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"${CSV[6]}; "
                 get_arguments "$@"
@@ -458,6 +462,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
     fi
 else
     #submit a single job if SAMPLE_FILE was not declared
+    SINGLE_JOB='true'
     job_submission 
     SAMPLE_ARRAY+=("$PROJECT_DIR/$SAMPLE_NAME")
     SAMPLE_INFO=(""$(echo $SAMPLE_NAME | tr '_' ' ')"")

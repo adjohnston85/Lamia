@@ -9,7 +9,7 @@ module load bowtie/2.2.9
 module load fastqc/0.11.5
 module load bismark/0.18.1
 module load trimgalore/0.4.4
-module load sratoolkit/2.8.2
+module load sratoolkit/2.9.6-1
 module load samtools/1.5
 module load picard/2.18.11
 module load igvtools/2.4.14
