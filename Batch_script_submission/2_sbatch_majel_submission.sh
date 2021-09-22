@@ -22,21 +22,27 @@ HELP='false'
 
 RSYNC_TIME='08:00:00'
 RSYNC_MEM='4gb'
+SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 
 GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
 ALIGNER_THREADS='6'
-SCRIPT_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission'
-MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
+
+#fetches the directory from which this script is located and run
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+#the Majel.py script is located one directory up from to bash scripts directory
+MAJEL_DIR="$(dirname "$SCRIPT_DIR")"
+
 
 #function checks if mandatory arguments have been set
 check_argument() {
     if [ -z "$2" ];then
-        echo "Error: --${1}= argument not set"
+        printf '%s\n\n' "Error: --${1}= argument not set"
         exit 1
    fi
-   echo "--${1}=$2"
+   printf '%s\n' "--${1}=$2"
 }
+
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -54,6 +60,9 @@ while [ $# -gt 0 ]; do
       ;;
     --rsync-mem=*)
       RSYNC_MEM="${1#*=}"
+      ;;
+    --sync-to=*)
+      SYNC_TO="${1#*=}"
       ;;
     --genome=*)
       GENOME="${1#*=}"
@@ -98,6 +107,7 @@ then
     printf '%s\n' 'Optional arguments:'
     printf '%s\n' '  --rsync-time=          sets time allocated to sbatch_io_SyncProcessedData_AJ.sh (default: --rsync-time=08:00:00)'
     printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh (default: --rsync-mem=4gb'
+    printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
     printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (e.g. --majel-genome=hg19)'
     printf '%s\n' '                         default: hg38'
     printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (e.g. --majel-genome-path=/path/to/Genomes/)'
@@ -113,12 +123,14 @@ fi
 
 check_argument "project-dir" $PROJECT_DIR
 check_argument "sample-name" $SAMPLE_NAME
-check_argument "mail-user" $EMAIL
 
-LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/slurm_submission_stdout.log
-if [ ! -f $LOG_FILE ]; then
-    > $LOG_FILE
+if hash slurm 2> /dev/null; then
+    check_argument "mail-user" $EMAIL
+    RSYNC_PREFIX="sbatch --time=$RSYNC_TIME --mem=$RSYNC_MEM --mail-user=$EMAIL --job-name=RSYNC:$SAMPLE_NAME "
 fi
+
+LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/2_sbatch_majel_submission.log
+> $LOG_FILE
 
 cd $PROJECT_DIR/$SAMPLE_NAME
 
@@ -138,12 +150,11 @@ then
   printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
   eval $SUBMISSION
 
-  SUBMISSION="sbatch --time=$RSYNC_TIME --mem=$RSYNC_MEM --mail-user=$EMAIL --job-name=RSYNC:$SAMPLE_NAME $SCRIPT_DIR/3_sbatch_io_SyncProcessedData.sh --sync-from=$PROJECT_DIR/$SAMPLE_NAME &>> slurm_majel_stdout.log"
+  SUBMISSION="${RSYNC_PREFIX}$SCRIPT_DIR/3_sbatch_io_SyncProcessedData.sh --sync-to=$SYNC_TO --sync-from=$PROJECT_DIR/$SAMPLE_NAME &>> slurm_majel_stdout.log"
   TIME=$(date '+%B %d %T %Z %Y')
   printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
   eval $SUBMISSION
 
 else
-  echo "methylseekrAndTDF did not complete - Check for failed tasks" | tee -a $LOG_FILE
-  exit 1
+  printf '%s\n\n' "methylseekrAndTDF did not complete - Check for failed tasks" | tee -a $LOG_FILE
 fi
