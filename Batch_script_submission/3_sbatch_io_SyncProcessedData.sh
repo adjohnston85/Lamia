@@ -42,7 +42,7 @@ fi
 SYNC_FROM="$(cd $SYNC_FROM && pwd)"
 PROJECT_FOLDER=$(basename "$(dirname $SYNC_FROM)")
 
-SUBMISSION="rsync -avzh --whole-file --remove-source-files --no-g --chmod=Dg=rwxs $SYNC_FROM $SYNC_TO/$PROJECT_FOLDER/ &>> slurm_rsync_stdout.log"
+SUBMISSION="rsync -avzh --whole-file --remove-source-files --no-g --chmod=Dg=rwxs $SYNC_FROM $SYNC_TO/$PROJECT_FOLDER/ &>> 3_sbatch_io_SyncProcessedData.log"
 TIME=$(date '+%B %d %T %Z %Y')
-printf '%s\n\n' "$TIME> $SUBMISSION"  > slurm_rsync_stdout.log
+printf '%s\n\n' "$TIME> $SUBMISSION" > 3_sbatch_io_SyncProcessedData.log
 eval $SUBMISSION

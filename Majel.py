@@ -258,7 +258,7 @@ else:
 @transform(sraFiles, formatter(".*.sra$"), [os.getcwd() + "/{basename[0]}_1.fastq.gz", os.getcwd() + "/{basename[0]}_2.fastq.gz"] if options.is_paired_end == "True" else [os.getcwd() + "/{basename[0]}_1.fastq.gz"], logger, logger_mutex)
 #extract from sra
 def sraToFastq(input_file, output_files, logger, logger_mutex):
-     cmd = ("%s --split-files --gzip %s" % (getFunctionPath("fastq-dump"),input_file))
+     cmd = ("%s --split-files --gzip -v %s" % (getFunctionPath("fastq-dump"),input_file))
      logger.log(MESSAGE,  timestamp("Running Command: %s" % cmd))
      exitcode, out, err = execute_cmd(cmd)
      checkOutput(output_files, "sraToFastq")
