@@ -155,7 +155,7 @@ mkdir -p $DATA_DIR
 
 cd $DATA_DIR
 FILE_LIST=($FILE_LIST)
-printf '%s\n' "${FILE_LIST[@]}" | parallel -j20 'eval "wget -O {}.sra $(srapath {})"' &> $PROJECT_DIR/$SAMPLE_NAME/sra_downloads.log
+printf '%s\n' "${FILE_LIST[@]}" | parallel -j20 'eval "wget -c -O {}.sra $(srapath {})"' &> $PROJECT_DIR/$SAMPLE_NAME/sra_downloads.log
 
 COUNT=0
 for SRA in ${FILE_LIST[@]}; do
