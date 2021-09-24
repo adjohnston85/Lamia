@@ -121,6 +121,7 @@ get_arguments() {
     done
 }
 
+
 set_fixes() {   
     if hash slurm 2> /dev/null; then
         SUB_PREFIX="$1"
@@ -284,51 +285,6 @@ job_submission() {
 }
 
 
-#intilize argument variables
-set_defaults
-get_arguments "$@"
-
-if [ -z $HELP ]; then
-    printf '\n'
-    printf '%s'   'usage: 0_initilize_majel_submission.sh [--help] [--project-dir=<path>] [--sample-name=<name>] [--majel-time=<time>] [--majel-ntasks=<ntasks>] '
-    printf '%s\n' '[--majel-mem=<size[units]> [--rsync-time=<time>] [--rsync-mem=<size[units]>]'
-    printf '\n'
-    printf '%s\n' 'Mandatory arguments:'
-    printf '%s\n' '  --project-dir=         sets path to the project directory containing the sample directory (e.g. --project-dir=/scratch1/usr001/PRJNA123456)'
-    printf '%s\n' '  --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678)'
-    printf '%s\n' '                         the sample name must correspond to a directory in the project directory and conform to the Majel.py naming conventions'
-    printf '%s\n' '                         the sample directory must contain a data/ directory containing either SRA (.sra) or FASTQ (.fq or .fastq) files'
-    printf '%s\n' '                         i.e. /path/to/PROJECT_NAME/SAMPLE_NAME/data/file.sra'
-    printf '%s\n' '  --mail-user=           sets email for SLURM notifications'
-    printf '%s\n' '                         not required when running on a system that does not use SLURM (e.g. the SHIRO-RI workstation)'
-    printf '\n'
-    printf '%s\n' 'Optional arguments:'
-    printf '%s\n' '  --sample-file=         sets path to a tab or comma delimited file containing sample information to run through pipeline (e.g. --sample-name=/scratch1/usr001/samples.csv)'
-    printf '%s\n' '  --concurrent-jobs      if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted from the <sample-file> at any one time'
-    printf '%s\n' '                         Note: for each line of this sample file any arguments generated or contained will override those declared globally'
-    printf '%s\n' '  --file-list=           sets the list of sequence files for downloaded or softlinking (e.g. --file-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
-    printf '%s\n' '                         Note: as per the example the list must be contained within quotation marks and sperated by spaces'
-    printf '%s\n' '  --data-dir             sets the directory from where the files specified in --file-list= will be softlinked'
-    printf '%s\n' '  --majel-time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
-    printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=20)'
-    printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=60gb'
-    printf '%s\n' '  --rsync-time=          sets time allocated to sbatch_io_SyncProcessedData_AJ.sh    (default: --rsync-time=08:00:00)'
-    printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=4gb'
-    printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
-    printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (e.g. --majel-genome=hg19)'
-    printf '%s\n' '                         default: hg38'
-    printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (e.g. --majel-genome-path=/path/to/Genomes/)'
-    printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-    printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (e.g. --majel-threads=4)'
-    printf '%s\n' '                         default: 6'
-    printf '%s\n' '  --majel-dir=           used to alter path to Majel.py'
-    printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
-    printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False"'
-    printf '%s\n' '  --skip-prompt          skips user confirmation (y/n) step'
-    printf '\n'
-    exit 1
-fi
-
 LEDGER_TITLES="Data Type,Sample_Name,Organism,Tissue,Sub-Tissue,Disease Status,User Name,Date Processed,"
 LEDGER_TITLES+="Citation,Repository,Input File(s),Notes,hg38,Directory location 1,Directory location 2,Notes,"
 
@@ -344,6 +300,7 @@ ledger_check() {
     SAMPLE_RECORD="$PROJECT_DIR/$SAMPLE_NAME/$1_record_$SAMPLE_NAME.csv"
     echo -e "$2" > "$SAMPLE_RECORD"
 }
+
 
 CHECK_PHRASES="methylseekrAndTDF Error:"
 CHECK_FILES="slurm_majel_stdout.log 0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log"
@@ -440,6 +397,52 @@ submission_cycle() {
 }
 
 
+#intilize argument variables
+set_defaults
+get_arguments "$@"
+
+if [ -z $HELP ]; then
+    printf '\n'
+    printf '%s'   'usage: 0_initilize_majel_submission.sh [--help] [--project-dir=<path>] [--sample-name=<name>] [--majel-time=<time>] [--majel-ntasks=<ntasks>] '
+    printf '%s\n' '[--majel-mem=<size[units]> [--rsync-time=<time>] [--rsync-mem=<size[units]>]'
+    printf '\n'
+    printf '%s\n' 'Mandatory arguments:'
+    printf '%s\n' '  --project-dir=         sets path to the project directory containing the sample directory (e.g. --project-dir=/scratch1/usr001/PRJNA123456)'
+    printf '%s\n' '  --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678)'
+    printf '%s\n' '                         the sample name must correspond to a directory in the project directory and conform to the Majel.py naming conventions'
+    printf '%s\n' '                         the sample directory must contain a data/ directory containing either SRA (.sra) or FASTQ (.fq or .fastq) files'
+    printf '%s\n' '                         i.e. /path/to/PROJECT_NAME/SAMPLE_NAME/data/file.sra'
+    printf '%s\n' '  --mail-user=           sets email for SLURM notifications'
+    printf '%s\n' '                         not required when running on a system that does not use SLURM (e.g. the SHIRO-RI workstation)'
+    printf '\n'
+    printf '%s\n' 'Optional arguments:'
+    printf '%s\n' '  --sample-file=         sets path to a tab or comma delimited file containing sample information to run through pipeline (e.g. --sample-name=/scratch1/usr001/samples.csv)'
+    printf '%s\n' '  --concurrent-jobs      if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted from the <sample-file> at any one time'
+    printf '%s\n' '                         Note: for each line of this sample file any arguments generated or contained will override those declared globally'
+    printf '%s\n' '  --file-list=           sets the list of sequence files for downloaded or softlinking (e.g. --file-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
+    printf '%s\n' '                         Note: as per the example the list must be contained within quotation marks and sperated by spaces'
+    printf '%s\n' '  --data-dir             sets the directory from where the files specified in --file-list= will be softlinked'
+    printf '%s\n' '  --majel-time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
+    printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=20)'
+    printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=60gb'
+    printf '%s\n' '  --rsync-time=          sets time allocated to sbatch_io_SyncProcessedData_AJ.sh    (default: --rsync-time=08:00:00)'
+    printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=4gb'
+    printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
+    printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (e.g. --majel-genome=hg19)'
+    printf '%s\n' '                         default: hg38'
+    printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (e.g. --majel-genome-path=/path/to/Genomes/)'
+    printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
+    printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (e.g. --majel-threads=4)'
+    printf '%s\n' '                         default: 6'
+    printf '%s\n' '  --majel-dir=           used to alter path to Majel.py'
+    printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
+    printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False"'
+    printf '%s\n' '  --skip-prompt          skips user confirmation (y/n) step'
+    printf '\n'
+    exit 1
+fi
+
+
 #check if SAMPLE_FILE was declared and if so run through this file in a job submission loop, 
 #pauses when maximum number of concurrent jobs is reached and waits for a job to finished before submitting another
 if [[ ! -z $SAMPLE_FILE ]]; then
@@ -502,3 +505,4 @@ else
     CSV_ARRAY+=($line)
     submission_cycle 1
 fi
+
