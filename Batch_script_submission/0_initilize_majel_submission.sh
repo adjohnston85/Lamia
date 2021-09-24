@@ -392,7 +392,7 @@ submission_cycle() {
             i=0
         fi
 
-        sleep 1s
+        sleep 10m
     done
 }
 
