@@ -121,6 +121,7 @@ get_arguments() {
     done
 }
 
+
 set_fixes() {   
     if hash slurm 2> /dev/null; then
         SUB_PREFIX="$1"
@@ -133,9 +134,11 @@ set_fixes() {
 
 
 job_submission() {
-    
+   
     SAMPLE_DIR="$PROJECT_DIR/$SAMPLE_NAME"
     mkdir -p "$SAMPLE_DIR/data"
+
+    rm -f $SAMPLE_DIR/*.log
 
     LOG_FILE="$SAMPLE_DIR/0_initilize_majel_submission.log"
     > $LOG_FILE
@@ -219,9 +222,9 @@ job_submission() {
     TIME=$(date '+%B %d %T %Z %Y')
     printf '%s'     "$TIME> $BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIMES " | tee -a $LOG_FILE
     printf '%s'     " --majel-ntasks=$MAJEL_NTASKS $MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --aligner-threads=$ALIGNER_THREADS --genome=$GENOME " | tee -a $LOG_FILE
-    printf '%s\n'   " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --file-list=\"$FILE_LIST\"" | tee -a $LOG_FILE
+    printf '%s\n\n'   " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --file-list=\"$FILE_LIST\"" | tee -a $LOG_FILE
 
-    if [[ -z $FILE_LIST ]]; then
+    if [[ -z $FILE_LIST ]] || [[ ! -z $DATA_DIR ]]; then
 
         set_fixes "sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
  
@@ -273,13 +276,124 @@ job_submission() {
             printf '%s\n\n' "$TIME> job submission failed due to an error" | tee -a $LOG_FILE
             unset FAIL
 	fi
-        exit 1
     fi
         
     printf '\n' | tee -a $LOG_FILE
     printf '~%.0s' {1..150}
     printf '\n\n'
 
+}
+
+
+LEDGER_TITLES="Data Type,Sample_Name,Organism,Tissue,Sub-Tissue,Disease Status,User Name,Date Processed,"
+LEDGER_TITLES+="Citation,Repository,Input File(s),Notes,hg38,Directory location 1,Directory location 2,Notes,"
+
+ledger_check() {
+    
+    LEDGER_FILE="$SCRIPT_DIR/$1_sample_ledger.csv"
+    if [[ ! -f $LEDGER_FILE ]]; then
+        echo -e "$LEDGER_TITLES" > "$LEDGER_FILE"
+    fi
+
+    echo -e "$2" >> "$LEDGER_FILE"
+
+    SAMPLE_RECORD="$PROJECT_DIR/$SAMPLE_NAME/$1_record_$SAMPLE_NAME.csv"
+    echo -e "$2" > "$SAMPLE_RECORD"
+}
+
+
+CHECK_PHRASES="methylseekrAndTDF Error:"
+CHECK_FILES="slurm_majel_stdout.log 0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log"
+
+completion_check() {
+
+    CHECK='false'	
+    for FILE in $CHECK_FILES; do
+        for PHRASE in $CHECK_PHRASES; do
+	    if grep -q -s "$PHRASE" $PROJECT_DIR/$SAMPLE_NAME/$FILE; then
+                CHECK='true'
+		break 1
+		break 2
+            fi
+        done
+    done
+}
+
+
+report_jobs() {
+
+printf '%s\n' "Failed samples:"
+for SAMPLE in "${FAIL_ARRAY[@]}"
+do
+    printf '%s\n' "$SAMPLE"
+done
+
+printf '\n%s\n' "Samples completed successfully:"
+for SAMPLE in "${SUCCESS_ARRAY[@]}"
+do
+    printf '%s\n' "$SAMPLE"
+done
+
+printf '\n%s\n' "Samples currently running:"
+for SAMPLE in "${SAMPLE_ARRAY[@]}"
+do
+    printf '%s\n' "$SAMPLE"
+done
+printf '\n'
+}
+
+
+submission_cycle() {
+   
+    i=0
+    while [[ ${#SAMPLE_ARRAY[@]} -ge $1 ]]
+    do
+        SAMPLE_NAME=$(basename ${SAMPLE_ARRAY[i]})
+        PROJECT_DIR=$(dirname ${SAMPLE_ARRAY[i]})
+        PROJECT_NAME=$(basename ${PROJECT_DIR})
+        completion_check
+       
+        if [[ $CHECK == 'true' ]]; then
+            
+	    CSV=(); while read -rd,; do CSV+=("$(echo "${REPLY^}")"); done <<<"${CSV_ARRAY[i]},"
+            DATE=$(date '+%Y-%m-%d')
+	 
+	    if [[ ! -z ${CSV[5]} ]]; then
+                USER_NAME=${CSV[5]}
+            elif [[ ! -z $EMAIL ]]; then
+                USER_NAME="$(echo  "${EMAIL^}" | cut -d @ -f 1 | tr '.' ' ' | sed 's/ [[:lower:]]/\U&/g')"
+            else
+                USER_NAME=$USER
+            fi
+            LEDGER_INFO=",${SAMPLE_NAME},,${CSV[0]},${CSV[1]},${CSV[2]},$USER_NAME,${DATE},,${PROJECT_NAME},"
+            LEDGER_INFO+="${CSV[4]},,${GENOME},${SYNC_TO}/${PROJECT_NAME}/${SAMPLE_NAME},,,"    
+            
+	    if grep -q -s "MethylSeekR and toTDF Completed" ${SAMPLE_ARRAY[i]}/slurm_majel_stdout.log; then
+                ledger_check "completed" "$LEDGER_INFO"
+		SUCCESS_ARRAY+=("${SAMPLE_ARRAY[i]}")
+            else
+                ledger_check "failed" "$LEDGER_INFO"
+		FAIL_ARRAY+=("${SAMPLE_ARRAY[i]}")
+            fi
+   
+            unset SAMPLE_ARRAY[i]
+            SAMPLE_ARRAY=("${SAMPLE_ARRAY[@]}")
+            unset CSV_ARRAY[i]
+            CSV_ARRAY=("${CSV_ARRAY[@]}")
+            
+            if [[ ! -z $2 ]]; then
+                report_jobs
+            fi   
+        fi
+ 
+        ((i++))
+
+        if [[ $i -ge ${#SAMPLE_ARRAY[@]} ]]; then
+            i=0
+        fi
+
+        sleep 10m
+    done
 }
 
 
@@ -328,89 +442,6 @@ if [ -z $HELP ]; then
     exit 1
 fi
 
-LEDGER_TITLES="Data Type,Sample_Name,Organism,Tissue,Sub-Tissue,Disease Status,User Name,Date Processed,"
-LEDGER_TITLES+="Citation,Repository,Input File(s),Notes,hg38,Directory location 1,Directory location 2,Notes,"
-
-ledger_check() {
-    
-    LEDGER_FILE="$SCRIPT_DIR/$1_sample_ledger.csv"
-    if [[ ! -f $LEDGER_FILE ]]; then
-        echo -e "$LEDGER_TITLES" > "$LEDGER_FILE"
-    fi
-
-    echo -e "$2" >> "$LEDGER_FILE"
-
-    SAMPLE_RECORD="$PROJECT_DIR/$SAMPLE_NAME/$1_record_$SAMPLE_NAME.csv"
-    echo -e "$2" > "$SAMPLE_RECORD"
-}
-
-CHECK_PHRASES="methylseekrAndTDF Error:"
-CHECK_FILES="slurm_majel_stdout.log 0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log"
-
-completion_check() {
-
-    CHECK='false'	
-    for FILE in $CHECK_FILES; do
-        for PHRASE in $CHECK_PHRASES; do
-	    if grep -q -s "$PHRASE" $FILE; then
-                CHECK='true'
-		break 1
-		break 2
-            fi
-        done
-    done
-}
-
-
-submission_cycle() {
-   
-    i=0
-    while [[ ${#SAMPLE_ARRAY[@]} -ge $1 ]]
-    do
-        completion_check
-       
-        if [[ $CHECK == 'true' ]]; then
-            
-            SAMPLE_NAME=$(basename ${SAMPLE_ARRAY[i]})
-	    PROJECT_DIR=$(dirname ${SAMPLE_ARRAY[i]})
-            PROJECT_NAME=$(basename ${PROJECT_DIR})
-            
-	    CSV=(); while read -rd,; do CSV+=("$(echo "${REPLY^}")"); done <<<"${CSV_ARRAY[i]},"
-            DATE=$(date '+%Y-%m-%d')
-	 
-	    if [[ ! -z ${CSV[5]} ]]; then
-                USER_NAME=${CSV[5]}
-            elif [[ ! -z $EMAIL ]]; then
-                USER_NAME="$(echo  "${EMAIL^}" | cut -d @ -f 1 | tr '.' ' ' | sed 's/ [[:lower:]]/\U&/g')"
-            else
-                USER_NAME=$USER
-            fi
-            LEDGER_INFO=",${SAMPLE_NAME},,${CSV[0]},${CSV[1]},${CSV[2]},$USER_NAME,${DATE},,${PROJECT_NAME},"
-            LEDGER_INFO+="${CSV[4]},,${GENOME},${SYNC_TO}/${PROJECT_NAME}/${SAMPLE_NAME},,,"    
-            
-	    if grep -q -s "MethylSeekR and toTDF Completed" ${SAMPLE_ARRAY[i]}/slurm_majel_stdout.log; then
-                ledger_check "completed" "$LEDGER_INFO"
-            else
-                ledger_check "failed" "$LEDGER_INFO"
-            fi
-    
-            unset SAMPLE_ARRAY[i]
-            SAMPLE_ARRAY=("${SAMPLE_ARRAY[@]}")
-            unset CSV_ARRAY[i]
-            CSV_ARRAY=("${CSV_ARRAY[@]}")
-    
-        fi
-    
-        ((i++))
-    
-        if [[ $i -ge ${#SAMPLE_ARRAY[@]} ]]; then
-            i=0
-        fi
-
-        sleep 10m
-    done
-}
-
 
 #check if SAMPLE_FILE was declared and if so run through this file in a job submission loop, 
 #pauses when maximum number of concurrent jobs is reached and waits for a job to finished before submitting another
@@ -422,6 +453,8 @@ if [[ ! -z $SAMPLE_FILE ]]; then
         SAMPLE_ARRAY=()
 	PROJECT_ARRAY=()
 	CSV_ARRAY=()
+	FAIL_ARRAY=()
+	SUCCESS_ARRAY=()
 
         while read line
         do
@@ -446,14 +479,16 @@ if [[ ! -z $SAMPLE_FILE ]]; then
           
             if [[ ${#SAMPLE_ARRAY[@]} -ge $CONCURRENT_JOBS ]]; then
                 printf '%s'     "The maximum number of concurrent Majel.py jobs (--concurrent-jobs=$CONCURRENT_JOBS) has been reached. "
-		printf '%s\n\n' "Waiting for a job to finish before continung with submissions."
+		printf '%s\n\n' "Waiting for a sample to finish before continuing with submissions."
+                
+                report_jobs
             fi
-            
+ 
             submission_cycle $CONCURRENT_JOBS
 
         done <<<"$CSV_FILE"
 
-        submission_cycle 1
+        submission_cycle 1 0
        
         printf '%s\n\n' "All jobs from $SAMPLE_FILE have completed. Exiting submission pipeline."
 
@@ -470,3 +505,4 @@ else
     CSV_ARRAY+=($line)
     submission_cycle 1
 fi
+
