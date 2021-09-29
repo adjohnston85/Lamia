@@ -28,22 +28,20 @@ set_defaults() {
     #the Majel.py script is located one directory up from to bash scripts directory
     MAJEL_DIR="$(dirname "$SCRIPT_DIR")"
 
-    unset FILE_LIST
-    unset DATA_DIR
+    unset RUN_LIST
+    unset RUN_DIR
+    unset RUN_FILES
     unset MAJEL_ARGS
 }
 
 
 #function checks if arguments have been set and prints their values
 check_argument() {
-   if [[ -z "$2" ]]; then
+    if [[ -z "$2" ]] || [[ $2 == '\"\"' ]]; then
         printf '%s\n\n' "Error: --${1}= argument not set" | tee -a $LOG_FILE
-	FAIL='true'
-        if [[ $SINGLE_JOB == 'true' ]]; then
-            exit 1
-        fi
-   fi
-   printf '%s\n' "--${1}=$2" | tee -a $LOG_FILE $PARAMETERS_FILE
+        FAIL='true'
+    fi
+    printf '%s\n' "--${1}=$2" | tee -a $LOG_FILE $PARAMETERS_FILE
 }
 
 
@@ -66,15 +64,15 @@ get_arguments() {
         --concurrent-jobs=*)
           CONCURRENT_JOBS="${1#*=}"
           ;;
-        --file-list=*)
-          if [[ -z $FILE_LIST ]]; then
-              FILE_LIST="${1#*=}"
+        --run-list=*)
+          if [[ -z $RUN_LIST ]]; then
+              RUN_LIST="${1#*=}"
           else
-              FILE_LIST+=" ${1#*=}"
+              RUN_LIST+=" ${1#*=}"
           fi
           ;;
-	 --data-dir=*)
-           DATA_DIR="${1#*=}"
+	 --run-dir=*)
+           RUN_DIR="${1#*=}"
           ;;
         --majel-time=*)
           MAJEL_TIME="${1#*=}"
@@ -146,6 +144,12 @@ job_submission() {
     PARAMETERS_FILE="$SAMPLE_DIR/run_parameters_$SAMPLE_NAME.txt"
     > $PARAMETERS_FILE
 
+    #print time and script inputs
+    printf '%s'     "$BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME " | tee -a $LOG_FILE
+    printf '%s'     " --majel-ntasks=$MAJEL_NTASKS $MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --aligner-threads=$ALIGNER_THREADS --genome=$GENOME " | tee -a $LOG_FILE
+    printf '%s'     " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --run-list=\"$RUN_LIST\"" | tee -a $LOG_FILE
+    printf '%s\n\n' " --run-dir=${RUN_DIR}" | tee -a $LOG_FILE 
+
     #check the values of mandatory arguments 
     check_argument "project-dir" $PROJECT_DIR
     check_argument "sample-name" $SAMPLE_NAME
@@ -164,38 +168,48 @@ job_submission() {
     #covert path variable to full path (i.e. ./destionation -> /full/path/to/destionation)
     PROJECT_DIR="$(cd $PROJECT_DIR && pwd)"
 
+    if [[ $RUN_LIST != *"}"* ]]; then
+        #removes potential " arifacts that can arise when --run-list= is specified in the SAMPLE_FILE as a string series
+        RUN_LIST="$(echo $RUN_LIST | tr -d '"')"
+    else
+        #converts a specified range ( e.g. --run-list=SRR1{1..3} ) into a string series ( e.g. --run-list="SRR1 SRR2 SRR3" )
+        RUN_LIST=$RUN_LIST
+    fi
+
     #if SRAs were not specified for download make sure sequence files exist in /data directory
-    if [[ ! -z $DATA_DIR ]] && [[ ! -z $FILE_LIST ]]; then
-        for FILE_PREFIX in $FILE_LIST
+    if [[ ! -z $RUN_DIR ]] && [[ ! -z $RUN_LIST ]]; then
+        for FILE_PREFIX in $RUN_LIST
         do
-	    FILES=$(find $DATA_DIR/ -type f -iname "$FILE_PREFIX*.fq.gz" -o -iname "$FILE_PREFIX*.fastq.gz" -o -iname "$FILE_PREFIX*.sra")
+	    if [[ -d $RUN_DIR ]]; then
+		RUN_FILES=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)_?[rR]?[12]?\.(fq|fastq|sra)\.(gz)?"))
 
-	    for FILE in $FILES
-            do
-		ln -s $FILE $PROJECT_DIR/$SAMPLE_NAME/data/$(basename $FILE)
-            done
-
-            check_argument "file-list" "$FILE_LIST"
-            check_argument "data-dir" "$DATA_DIR"
+		if [[ ! -z $RUN_FILES ]]; then
+                    for FILE in ${RUN_FILES[@]}
+                    do
+		        ln -sf $FILE $PROJECT_DIR/$SAMPLE_NAME/data/$(basename $FILE)
+                    done
+                else
+                    printf '%s\n' "Error: the run \"${FILE_PREFIX}\" specified in --run-list= does not exist in the --run-dir=$RUN_DIR directory" | tee -a $LOG_FILE
+		    FAIL='true'
+		fi
+            else
+                printf '%s\n' "Error: the directory in --run-dir=$RUN_DIR does not exist" | tee -a $LOG_FILE
+		FAIL='true'
+            fi
+	    check_argument "run-list" "\"$RUN_LIST\""
+            check_argument "run-dir" "$RUN_DIR"
         done 
-    elif [[ -z $FILE_LIST ]]; then
-        COUNT=`find $PROJECT_DIR/$SAMPLE_NAME/data -type f \( -iname \*.fastq.gz -o -iname \*.sra -o -iname \*.fq.gz \) | wc -l`
-        if [ $COUNT = 0 ]; then
-            printf '%s\n' "Error: IF --file-list= is not used to specify SRA file(s) for download" | tee -a $LOG_FILE	
-	    printf '%s\n' "Error: OR --file-list= and --data-dir= are not used to specify files for soft linking" | tee -a $LOG_FILE
+    elif [[ -z $RUN_LIST ]]; then
+	RUN_FILES=($(find $PROJECT_DIR/$SAMPLE_NAME/data -regextype posix-extended -regex ".*\.(fq|fastq|sra)\.(gz)?"))
+	if [[ ${#RUN_FILES[@]} == 0 ]]; then
+            printf '%s\n'   "Error: IF --run-list= is not used to specify SRA file(s) for download" | tee -a $LOG_FILE	
+	    printf '%s\n'   "Error: OR --run-list= and --run-dir= are not used to specify files for soft linking" | tee -a $LOG_FILE
             printf '%s\n\n' "Error: THEN $PROJECT_DIR/$SAMPLE_NAME/data must contain SRA (.sra) or FASTQ (.fastq.gz OR fq.gz) files" | tee -a $LOG_FILE
 	    FAIL='true'
         fi
     else
-        if [[ $FILE_LIST != *"}"* ]]; then
-            #removes potential " arifacts that can arise when --file-list= is specified in the SAMPLE_FILE as a string series
-            FILE_LIST="$(echo $FILE_LIST | tr -d '"')"
-        else
-            #converts a specified range ( e.g. --file-list=SRR1{1..3} ) into a string series ( e.g. --file-list="SRR1 SRR2 SRR3" )
-            FILE_LIST=$FILE_LIST
-        fi
-
-        check_argument "file-list" "$FILE_LIST"
+        check_argument "run-list" "\"$RUN_LIST\""
+	printf '%s\n' "--run-dir=${RUN_DIR}" | tee -a $LOG_FILE $PARAMETERS_FILE
     fi
 
     cd $PROJECT_DIR/$SAMPLE_NAME
@@ -214,36 +228,48 @@ job_submission() {
     
     #add space after additional majel arguments, if they exist
     [[ -z $MAJEL_ARGS ]] || MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
-    
+       
     #prints MAJEL_ARGS values without checking for existance (this argument is not required for subsequent steps)
     printf '%s\n\n' "--majel-args=\"${MAJEL_ARGS}\"" | tee -a $LOG_FILE $PARAMETERS_FILE
 
-    #print time and script inputs
-    TIME=$(date '+%B %d %T %Z %Y')
-    printf '%s'     "$TIME> $BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIMES " | tee -a $LOG_FILE
-    printf '%s'     " --majel-ntasks=$MAJEL_NTASKS $MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --aligner-threads=$ALIGNER_THREADS --genome=$GENOME " | tee -a $LOG_FILE
-    printf '%s\n\n'   " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --file-list=\"$FILE_LIST\"" | tee -a $LOG_FILE
+    if [[ $FAIL == 'true' ]]; then
+        printf '%s\n\n' "job submission failed due to an error" | tee -a $LOG_FILE
+        return
+    fi
 
-    if [[ -z $FILE_LIST ]] || [[ ! -z $DATA_DIR ]]; then
+    if [[ -z $RUN_FILES ]]; then
+        printf '%s\n\n' "Majel will run on following SRA files that will be downloaded to $PROJECT_DIR/$SAMPLE_NAME/data:" | tee -a $LOG_FILE
+	RUN_FILES=($RUN_LIST)
+	RUN_FILES=( "${RUN_FILES[@]/%/.sra}" )
+    else
+        printf '%s\n\n' "Majel will run on the following files located in $PROJECT_DIR/$SAMPLE_NAME/data:" | tee -a $LOG_FILE
+    fi
+    for FILE in ${RUN_FILES[@]}
+    do
+        printf '%s' "$(basename $FILE) " | tee -a $LOG_FILE
+    done       
+    printf '\n\n' | tee -a $LOG_FILE
+
+    if [[ -z $RUN_LIST ]] || [[ ! -z $RUN_DIR ]]; then
 
         set_fixes "sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
  
-        #set job submission variable for if --file-list= was not declared (skips SRA download script)
+        #set job submission variable for if --run-list= was not declared (skips SRA download script)
         SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR "
         SUBMISSION+="--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH "
         SUBMISSION+="--sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     else
         #convert string series to proper array
-        TMP_ARRAY=($FILE_LIST)
+        TMP_ARRAY=($RUN_LIST)
         LEN_ARRAY=$(expr ${#TMP_ARRAY[@]} - 1)
         #calculate number of cores based on number of SRA files to be downloaded (5 file downloads per core, as advised by IMT)
         CORES=$(($LEN_ARRAY/5+1))
  
         set_fixes "sbatch --job-name=SRA_DL:${SAMPLE_NAME} --mail-user=$EMAIL --ntasks-per-node=$CORES "
 
-        ##set job submission variable for if --file-list= was declared
+        ##set job submission variable for if --run-list= was declared
         SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM "
-        SUBMISSION+="--file-list=$FILE_LIST --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
+        SUBMISSION+="--run-list=\"$RUN_LIST\" --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
         SUBMISSION+="--sync-to=$SYNC_TO --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     fi
 
@@ -251,10 +277,10 @@ job_submission() {
     printf '%s\n\n' "These parameters will result in the following submission:" | tee -a $LOG_FILE
     printf '%s\n\n' "$SUBMISSION" | tee -a $LOG_FILE
 
-    printf '%s\n\n' "These parameters will result in the following Majel.py job:"
-    printf '%s'     "python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME " | tee -a $PARAMETERS_FILE
-    printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}" | tee -a $PARAMETERS_FILE
-    printf '%s\n\n' "-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log" | tee -a $PARAMETERS_FILE
+    printf '%s\n\n' "These parameters will result in the following Majel.py job:" | tee -a $LOG_FILE
+    printf '%s'     "python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME " | tee -a $LOG_FILE
+    printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}" | tee -a $LOG_FILE
+    printf '%s\n\n' "-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log" | tee -a $LOG_FILE
 
     #skip user confirmation step if --skip-promt argument was set
     if [[ $SKIP_PROMPT == "false" ]]; then
@@ -263,25 +289,18 @@ job_submission() {
     fi
 
     #confirmation of user input
-    TIME=$(date '+%B %d %T %Z %Y')
     if [[ $REPLY =~ ^[Yy]$ ]] || [[ $SKIP_PROMPT != 'false' ]] && [[ -z $FAIL ]]; then
-        printf '%s\n\n' "$TIME> job was submitted" | tee -a $LOG_FILE
+	printf '%s\n\n' "Job was submitted on $(date '+%B %d %Y at %T %Z')" | tee -a $LOG_FILE
         
         #submit job
         eval "$SUBMISSION" | tee -a $LOG_FILE
     else
-	if [[ -z $FAIL ]]; then
-            printf '%s\n\n' "$TIME> job was not submitted" | tee -a $LOG_FILE
-	else
-            printf '%s\n\n' "$TIME> job submission failed due to an error" | tee -a $LOG_FILE
-            unset FAIL
-	fi
+        printf '%s\n\n' "Job was not submitted" | tee -a $LOG_FILE
+	exit 1
     fi
         
-    printf '\n' | tee -a $LOG_FILE
     printf '~%.0s' {1..150}
     printf '\n\n'
-
 }
 
 
@@ -290,7 +309,7 @@ LEDGER_TITLES+="Citation,Repository,Input File(s),Notes,hg38,Directory location 
 
 ledger_check() {
     
-    LEDGER_FILE="$SCRIPT_DIR/$1_sample_ledger.csv"
+    LEDGER_FILE="$PROJECT_DIR/${PROJECT_NAME}_$1_sample_ledger.csv"
     if [[ ! -f $LEDGER_FILE ]]; then
         echo -e "$LEDGER_TITLES" > "$LEDGER_FILE"
     fi
@@ -392,7 +411,7 @@ submission_cycle() {
             i=0
         fi
 
-        sleep 10m
+        sleep 1s
     done
 }
 
@@ -419,9 +438,9 @@ if [ -z $HELP ]; then
     printf '%s\n' '  --sample-file=         sets path to a tab or comma delimited file containing sample information to run through pipeline (e.g. --sample-name=/scratch1/usr001/samples.csv)'
     printf '%s\n' '  --concurrent-jobs      if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted from the <sample-file> at any one time'
     printf '%s\n' '                         Note: for each line of this sample file any arguments generated or contained will override those declared globally'
-    printf '%s\n' '  --file-list=           sets the list of sequence files for downloaded or softlinking (e.g. --file-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
+    printf '%s\n' '  --run-list=            sets the list of sequence files for downloaded or soft linking (e.g. --run-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
     printf '%s\n' '                         Note: as per the example the list must be contained within quotation marks and sperated by spaces'
-    printf '%s\n' '  --data-dir             sets the directory from where the files specified in --file-list= will be softlinked'
+    printf '%s\n' '  --run-dir              sets the directory where the run files specified in --run-list= will be soft linked from'
     printf '%s\n' '  --majel-time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
     printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=20)'
     printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=60gb'
@@ -469,7 +488,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
                 get_arguments "${ARGS[@]}"
 
                 if [[ ! -z ${CSV[4]} ]]; then
-                    FILE_LIST="\"$(echo ${CSV[4]} | tr ';' ' ')\""
+                    RUN_LIST="\"$(echo ${CSV[4]} | tr ';' ' ')\""
                 fi
 
                 job_submission
@@ -501,7 +520,7 @@ else
     job_submission 
     SAMPLE_ARRAY+=("$PROJECT_DIR/$SAMPLE_NAME")
     SAMPLE_INFO=(""$(echo $SAMPLE_NAME | tr '_' ' ')"")
-    line="$(echo "${SAMPLE_INFO[*]:0:3}" | tr ' ' ','),,,$(echo $FILE_LIST | tr ' ' ';' | tr -d '"'),,,"
+    line="$(echo "${SAMPLE_INFO[*]:0:3}" | tr ' ' ','),,,$(echo $RUN_LIST | tr ' ' ';' | tr -d '"'),,,"
     CSV_ARRAY+=($line)
     submission_cycle 1
 fi

@@ -41,11 +41,11 @@ while [ $# -gt 0 ]; do
     --sample-name=*)
       SAMPLE_NAME="${1#*=}"
       ;;
-    --file-list=*)
-      if [[ -z $FILE_LIST ]]; then
-          FILE_LIST="${1#*=}"
+    --run-list=*)
+      if [[ -z $RUN_LIST ]]; then
+          RUN_LIST="${1#*=}"
       else
-          FILE_LIST+=" ${1#*=}"
+          RUN_LIST+=" ${1#*=}"
       fi
       ;;
     --majel-time=*)
@@ -97,16 +97,16 @@ done
 
 if [ -z $HELP ];then
     printf '\n'
-    printf '%s\n' 'usage: initilize_majel_submission.sh [--help] [--project-dir=<path>] [--sample-name=<name>] [--mail-user=<email>] [file-list=<list>]'
+    printf '%s\n' 'usage: initilize_majel_submission.sh [--help] [--project-dir=<path>] [--sample-name=<name>] [--mail-user=<email>] [run-list=<list>]'
     printf '\n'
     printf '%s\n' 'Mandatory arguments:'
     printf '%s\n' '  --project-dir=         sets the path to the project directory containing the sample directory (e.g. --project-dir=/scratch1/usr001/PRJNA123456)'
-    printf '%s\n' '  --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678)'
+    printf '%s\n' '  --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678'
     printf '%s\n' '                         the sample name must correspond to a directory in the project directory and conform to the Majel.py naming conventions'
     printf '%s\n' '                         the sample directory must contain a data/ directory containing either SRA (.sra) or FASTQ (.fq or .fastq) files'
     printf '%s\n' '                         i.e. /path/to/PROJECT_NAME/SAMPLE_NAME/data/file.sra'
     printf '%s\n' '  --mail-user=           sets email for SLURM notifications'
-    printf '%s\n' '  --file-list=           sets the list of SRAs to be downloaded (e.g. --file-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
+    printf '%s\n' '  --run-list=           sets the list of SRAs to be downloaded (e.g. --run-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
     printf '%s\n' '                         Note: as per the example a list of SRAs must be contained within quotation marks'
     printf '\n'
     printf '%s\n' 'Optional arguments:'
@@ -143,10 +143,10 @@ if hash slurm 2> /dev/null; then
 fi
 
 #remove extraneous quotation marks that can occur when us the --sample-file= option
-FILE_LIST=$(echo "$FILE_LIST" | tr -d '"')
+RUN_LIST=$(echo "$RUN_LIST" | tr -d '"')
 [[ -z $MAJEL_ARGS ]] || MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
 
-check_argument "file-list" "$FILE_LIST"
+check_argument "run-list" "$RUN_LIST"
 
 SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
 
@@ -154,11 +154,11 @@ DATA_DIR="$PROJECT_DIR/$SAMPLE_NAME/data"
 mkdir -p $DATA_DIR
 
 cd $DATA_DIR
-FILE_LIST=($FILE_LIST)
-printf '%s\n' "${FILE_LIST[@]}" | parallel -j20 'eval "wget -c -O {}.sra $(srapath {})"' &> $PROJECT_DIR/$SAMPLE_NAME/sra_downloads.log
+RUN_LIST=($RUN_LIST)
+printf '%s\n' "${RUN_LIST[@]}" | parallel -j20 'eval "wget -c -O {}.sra $(srapath {})"' &> $PROJECT_DIR/$SAMPLE_NAME/sra_downloads.log
 
 COUNT=0
-for SRA in ${FILE_LIST[@]}; do
+for SRA in ${RUN_LIST[@]}; do
     if [[ -s $SRA.sra ]]; then
 	printf '%s\n' "$SRA.sra exists and is not empty" | tee -a $LOG_FILE
     else
@@ -168,7 +168,7 @@ for SRA in ${FILE_LIST[@]}; do
 done
 
 if [[ "$COUNT" -gt 0 ]]; then
-    printf '%s\n' "Error: $COUNT SRA file(s) specified in --file-list= doesn't exist or is empty. Exiting pipeline." | tee -a $LOG_FILE
+    printf '%s\n' "Error: $COUNT SRA file(s) specified in --run-list= doesn't exist or is empty. Exiting pipeline." | tee -a $LOG_FILE
     exit 1
 fi
 
