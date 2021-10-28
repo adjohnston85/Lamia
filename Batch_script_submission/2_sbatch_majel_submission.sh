@@ -8,7 +8,7 @@
 module load bowtie/2.2.9
 module load fastqc/0.11.5
 module load bismark/0.18.1
-module load trimgalore/0.4.4
+module load trimgalore/0.6.7
 module load sratoolkit/2.9.6-1
 module load samtools/1.5
 module load picard/2.18.11
@@ -17,8 +17,10 @@ module load R/3.6.1
 module load bedtools/2.26.0
 module load methyldackel/0.4.0
 module load python/3.7.2
+module load parallel/20190722
 
 HELP='false'
+FROM_SCRATCH='false'
 
 RSYNC_TIME='08:00:00'
 RSYNC_MEM='4gb'
@@ -26,7 +28,7 @@ SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 
 GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-ALIGNER_THREADS='6'
+ALIGNER_THREADS='4'
 
 #fetches the directory from which this script is located and run
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -84,6 +86,9 @@ while [ $# -gt 0 ]; do
           MAJEL_ARGS="${1#*=} "
       fi
       ;;
+    --from-scratch*)
+      FROM_SCRATCH="${1#*t}"
+      ;;
     --help*)
       HELP="${1#*p}"
       ;;
@@ -117,6 +122,7 @@ then
     printf '%s\n' '  --majel-dir=           used to alter path to Majel.py'
     printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False"'
+    printf '%s\n' '  --from-scratch         the Majel.py pipeline will NOT continue from where it left off but instead will start over, overwriting steps that might already have been completed'
     printf '\n'
     exit 1
 fi
@@ -129,16 +135,22 @@ if hash slurm 2> /dev/null; then
     RSYNC_PREFIX="sbatch --time=$RSYNC_TIME --mem=$RSYNC_MEM --mail-user=$EMAIL --job-name=RSYNC:$SAMPLE_NAME "
 fi
 
-LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/2_sbatch_majel_submission.log
-> $LOG_FILE
-
 cd $PROJECT_DIR/$SAMPLE_NAME
 
 SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
 
+LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/2_sbatch_majel_submission.log
+if [[ -z $FROM_SCRATCH ]]; then
+    >$LOG_FILE
+    > slurm_majel_stdout.log
+    rm -f ./.ruffus_history.sqlite
+else
+    touch slurm_majel_stdout.log $PROJECT_DIR/$SAMPLE_NAME/2_sbatch_majel_submission.log
+fi
+
 SUBMISSION="python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME \
 --genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}\
--v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log"
+-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &>> slurm_majel_stdout.log"
 TIME=$(date '+%B %d %T %Z %Y')
 printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
 eval $SUBMISSION

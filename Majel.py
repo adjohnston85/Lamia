@@ -40,8 +40,8 @@ parser.add_argument("--genome", help="Genome for alignment. Must be a directory 
 parser.add_argument("--data_dir", help="Directory for input fastq/sra files",
                     default = "./data/")
 parser.add_argument("--sample_name", help='Sample name. Used for output file names and should match directory name. Will determine colouring of TDF track file and must conform to following convention "Tissue_SubTissue_HealthStatus_Identifier"')
-parser.add_argument("--aligner_threads", help="Speed up alignment by increasing number of threads. Values depends on the aligner. Defaults to 5",
-                          default=5)
+parser.add_argument("--aligner_threads", help="Speed up alignment by increasing number of threads. Values depends on the aligner. Defaults to 4 (this will cause Bismark to use ~20 cores and ~40GB of RAM)",
+                          default=4)
 parser.add_argument("--pbat", action='store_true',
                           help="Specify when aligning pbat library")
 parser.add_argument("--non_directional", action='store_true',
@@ -157,7 +157,7 @@ def bamMerge(bam_files, file_prefix):
      thread_factor = 1
      if options.aligner == 'bismark':
           thread_factor = 5
-     merge_cmd = '%s merge -@ %s -O BAM %s.bam %s' % (getFunctionPath("samtools"), options.aligner_threads*thread_factor, file_prefix, ' '.join(bam_files))
+     merge_cmd = '%s merge -@ %s -O BAM %s.bam %s' % (getFunctionPath("samtools"), str(int(options.aligner_threads)*thread_factor), file_prefix, ' '.join(bam_files))
      logger.log(MESSAGE, timestamp('merging %s files into 1' % len(bam_files)))
      os.system(merge_cmd)
 
@@ -197,8 +197,6 @@ def detect_input_type(input_files):
      else:
           logger.log(MESSAGE, timestamp("Input files appear to be in incorrect or mixed formats"))
           sys.exit(1)
-     
-
 
 #Walt code to be fixed in the future
 #def align_walt(input_files, base_name, target_genome):
@@ -258,29 +256,35 @@ else:
 @transform(sraFiles, formatter(".*.sra$"), [os.getcwd() + "/{basename[0]}_1.fastq.gz", os.getcwd() + "/{basename[0]}_2.fastq.gz"] if options.is_paired_end == "True" else [os.getcwd() + "/{basename[0]}_1.fastq.gz"], logger, logger_mutex)
 #extract from sra
 def sraToFastq(input_file, output_files, logger, logger_mutex):
-     cmd = ("%s --split-files --gzip -v %s" % (getFunctionPath("fastq-dump"),input_file))
-     logger.log(MESSAGE,  timestamp("Running Command: %s" % cmd))
-     exitcode, out, err = execute_cmd(cmd)
-     checkOutput(output_files, "sraToFastq")
+    thread_factor = 1
+    if options.aligner == 'bismark':
+        thread_factor = 5
+    cmd = ("%s --split-files --threads %s --gzip --outdir %s --sra-id %s" % (getFunctionPath("parallel-fastq-dump"),str(int(options.aligner_threads)*thread_factor),'./',input_file))
+    logger.log(MESSAGE,  timestamp("Running Command: %s" % cmd))
+    exitcode, out, err = execute_cmd(cmd)
+    checkOutput(output_files, "sraToFastq")
      
-     with logger_mutex:
-          logger.log(MESSAGE,"Extracted fastq from sra")
+    with logger_mutex:
+        logger.log(MESSAGE,"Extracted fastq from sra")
 
 
 @active_if(run_if_sra)         
 @collate(sraToFastq, regex("_[12].fastq.gz"), ["_1_val_1.fq.gz","_2_val_2.fq.gz"] if options.is_paired_end == "True" else ["_1_trimmed.fq.gz"], logger, logger_mutex)
 
 def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
+    core_no = options.aligner_threads
+    if int(core_no) > 4:
+        core_no = "4"
     trimPath = getFunctionPath("trim_galore")
     if options.is_paired_end == "True":
         if all([len(files) == 2 for files in input_files]):
-            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
+            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores %s --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + [core_no] + input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
         else:
             raise Exception("Unpaired files present. Check output from sraToFastq")
         
     else:
-        cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --clip_R1 10 --three_prime_clip_R1 10 %s' % tuple([trimPath] + input_files[0]))
+        cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores %s --clip_R1 10 --three_prime_clip_R1 10 %s' % tuple([trimPath] + core_no + input_files[0]))
         exitcode, out, err = execute_cmd(cmd)
     
     checkOutput(output_paired_files, "trim_fastq")
@@ -297,7 +301,7 @@ def trim_fastq2(input_files, output_paired_files, logger, logger_mutex):
     trimPath = getFunctionPath("trim_galore")
     if options.is_paired_end == "True":
         if all([len(files) == 2 for files in input_files]):
-            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
+            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores 4 --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
         else:
             raise Exception("Unpaired files in input.")

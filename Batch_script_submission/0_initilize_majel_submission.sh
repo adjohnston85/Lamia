@@ -2,6 +2,7 @@
 
 HELP='false'
 SKIP_PROMPT='false'
+FROM_SCRATCH=''
 
 #function to set or reset default values
 set_defaults() {
@@ -21,17 +22,21 @@ set_defaults() {
 
     GENOME='hg38'
     GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-    ALIGNER_THREADS='6'
+    ALIGNER_THREADS='4'
+
+    DL_ATTEMPTS='5'
 
     #fetches the directory from which this script is located and run
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
     #the Majel.py script is located one directory up from to bash scripts directory
     MAJEL_DIR="$(dirname "$SCRIPT_DIR")"
 
+    RUN_FILES=()
+
     unset RUN_LIST
     unset RUN_DIR
-    unset RUN_FILES
     unset MAJEL_ARGS
+    unset FAIL
 }
 
 
@@ -71,6 +76,9 @@ get_arguments() {
               RUN_LIST+=" ${1#*=}"
           fi
           ;;
+        --dl-attempts=*)
+          DL_ATTEMPTS="${1#*=}"
+          ;;
 	 --run-dir=*)
            RUN_DIR="${1#*=}"
           ;;
@@ -107,6 +115,9 @@ get_arguments() {
         --majel-args=*)
           MAJEL_ARGS="${1#*=}"
           ;;
+	--from-scratch*)
+          FROM_SCRATCH="${1#*t}--from-scratch "
+          ;;
         --skip-prompt*)
           SKIP_PROMPT="${1#*t}"
           ;;
@@ -136,13 +147,15 @@ job_submission() {
     SAMPLE_DIR="$PROJECT_DIR/$SAMPLE_NAME"
     mkdir -p "$SAMPLE_DIR/data"
 
-    rm -f $SAMPLE_DIR/*.log
+    if [[ -z $FROM_SCRATCH ]]; then
+        rm -f $SAMPLE_DIR/*.log
+    fi
 
     LOG_FILE="$SAMPLE_DIR/0_initilize_majel_submission.log"
-    > $LOG_FILE
+    touch $LOG_FILE
 
     PARAMETERS_FILE="$SAMPLE_DIR/run_parameters_$SAMPLE_NAME.txt"
-    > $PARAMETERS_FILE
+    touch $PARAMETERS_FILE
 
     #print time and script inputs
     printf '%s'     "$BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME " | tee -a $LOG_FILE
@@ -181,8 +194,8 @@ job_submission() {
         for FILE_PREFIX in $RUN_LIST
         do
 	    if [[ -d $RUN_DIR ]]; then
-		RUN_FILES=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)_?[rR]?[12]?\.(fq|fastq|sra)\.(gz)?"))
-
+		RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)_?[rR]?[12]?\.(fq|fastq|sra)\.?(gz)?"))
+		
 		if [[ ! -z $RUN_FILES ]]; then
                     for FILE in ${RUN_FILES[@]}
                     do
@@ -244,6 +257,7 @@ job_submission() {
     else
         printf '%s\n\n' "Majel will run on the following files located in $PROJECT_DIR/$SAMPLE_NAME/data:" | tee -a $LOG_FILE
     fi
+    
     for FILE in ${RUN_FILES[@]}
     do
         printf '%s' "$(basename $FILE) " | tee -a $LOG_FILE
@@ -255,9 +269,9 @@ job_submission() {
         set_fixes "sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
  
         #set job submission variable for if --run-list= was not declared (skips SRA download script)
-        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR "
+        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR $FROM_SCRATCH"
         SUBMISSION+="--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH "
-        SUBMISSION+="--sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
+        SUBMISSION+="--sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --aligner-threads=$ALIGNER_THREADS --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     else
         #convert string series to proper array
         TMP_ARRAY=($RUN_LIST)
@@ -268,8 +282,8 @@ job_submission() {
         set_fixes "sbatch --job-name=SRA_DL:${SAMPLE_NAME} --mail-user=$EMAIL --ntasks-per-node=$CORES "
 
         ##set job submission variable for if --run-list= was declared
-        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM "
-        SUBMISSION+="--run-list=\"$RUN_LIST\" --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
+        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --aligner-threads=$ALIGNER_THREADS "
+        SUBMISSION+="--run-list=\"$RUN_LIST\" --dl-attempts=$DL_ATTEMPTS --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR $FROM_SCRATCH--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
         SUBMISSION+="--sync-to=$SYNC_TO --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     fi
 
@@ -440,6 +454,8 @@ if [ -z $HELP ]; then
     printf '%s\n' '                         Note: for each line of this sample file any arguments generated or contained will override those declared globally'
     printf '%s\n' '  --run-list=            sets the list of sequence files for downloaded or soft linking (e.g. --run-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
     printf '%s\n' '                         Note: as per the example the list must be contained within quotation marks and sperated by spaces'
+    printf '%s\n' '  --dl-attempts          sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
+    printf '%s\n' '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
     printf '%s\n' '  --run-dir              sets the directory where the run files specified in --run-list= will be soft linked from'
     printf '%s\n' '  --majel-time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
     printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=20)'
@@ -447,16 +463,14 @@ if [ -z $HELP ]; then
     printf '%s\n' '  --rsync-time=          sets time allocated to sbatch_io_SyncProcessedData_AJ.sh    (default: --rsync-time=08:00:00)'
     printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=4gb'
     printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
-    printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (e.g. --majel-genome=hg19)'
-    printf '%s\n' '                         default: hg38'
-    printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (e.g. --majel-genome-path=/path/to/Genomes/)'
-    printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-    printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (e.g. --majel-threads=4)'
-    printf '%s\n' '                         default: 6'
-    printf '%s\n' '  --majel-dir=           used to alter path to Majel.py'
-    printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
-    printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False"'
+    printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (default: --majel-genome=hg38)'
+    printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (default: --majel-genome-path=/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/)'
+    printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (default: --majel-threads=6)'
+    printf '%s\n' '  --majel-dir=           used to alter path to Majel.py (default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main)'
+    printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False")'
+    printf '%s\n' '                         Note: this list of additional arguments must be contained within quotation marks'    
     printf '%s\n' '  --skip-prompt          skips user confirmation (y/n) step'
+    printf '%s\n' '  --from-scratch         the Majel.py pipeline will NOT continue from where it left off but instead will start over, overwriting steps that might already have been completed'
     printf '\n'
     exit 1
 fi

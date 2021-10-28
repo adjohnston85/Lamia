@@ -5,14 +5,15 @@
 #SBATCH --mail-type=ALL
 #SBATCH --partition io
 
-module load sratoolkit/2.8.2
+module load sratoolkit/2.9.6-1
 module load parallel/20190722
 
 HELP='false'
+FROM_SCRATCH=''
 
 MAJEL_TIME="04-00"
 MAJEL_MEM="60gb"
-MAJEL_NTASKS="1"
+MAJEL_NTASKS='1'
 
 RSYNC_TIME="08:00:00"
 RSYNC_MEM="4gb"
@@ -20,8 +21,10 @@ SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 
 GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-ALIGNER_THREADS='6'
+ALIGNER_THREADS='4'
 MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
+
+DL_ATTEMPTS=5
 
 #function checks if mandatory arguments have been set
 check_argument() {
@@ -48,6 +51,9 @@ while [ $# -gt 0 ]; do
           RUN_LIST+=" ${1#*=}"
       fi
       ;;
+    --dl-attempts=*)
+      DL_ATTEMPTS="${1#*=}"
+      ;;      
     --majel-time=*)
       MAJEL_TIME="${1#*=}"
       ;;
@@ -87,8 +93,11 @@ while [ $# -gt 0 ]; do
     --majel-args=*)
       MAJEL_ARGS="${1#*=}"
       ;;
+    --from-scratch*)
+      FROM_SCRATCH="${1#*t}--from-scratch "
+      ;;
     --help*)
-      help="${1#*p}"
+      HELP="${1#*p}"
       ;;
     *)
   esac
@@ -106,32 +115,35 @@ if [ -z $HELP ];then
     printf '%s\n' '                         the sample directory must contain a data/ directory containing either SRA (.sra) or FASTQ (.fq or .fastq) files'
     printf '%s\n' '                         i.e. /path/to/PROJECT_NAME/SAMPLE_NAME/data/file.sra'
     printf '%s\n' '  --mail-user=           sets email for SLURM notifications'
-    printf '%s\n' '  --run-list=           sets the list of SRAs to be downloaded (e.g. --run-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
+    printf '%s\n' '  --run-list=            sets the list of SRAs to be downloaded (e.g. --run-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
     printf '%s\n' '                         Note: as per the example a list of SRAs must be contained within quotation marks'
     printf '\n'
     printf '%s\n' 'Optional arguments:'
+    printf '%s\n' '  --dl-attempts          sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
+    printf '%s\n' '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
     printf '%s\n' '  --majel_time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
     printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=20)'
     printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=60gb'
     printf '%s\n' '  --rsync-time=          sets time allocated to sbatch_io_SyncProcessedData_AJ.sh    (default: --rsync-time=08:00:00)'
     printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=4gb'
     printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
-    printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (e.g. --majel-genome=hg19)'
-    printf '%s\n' '                         default: hg38'
-    printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (e.g. --majel-genome-path=/path/to/Genomes/)'
-    printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-    printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (e.g. --majel-threads=4)'
-    printf '%s\n' '                         default: 6'
-    printf '%s\n' '  --majel-dir=           used to alter path to Majel.py'
-    printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
-    printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False"'
+    printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (default: --majel-genome=hg38)'
+    printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (default: --majel-genome-path=/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/)'
+    printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (default: --majel-threads=6)'
+    printf '%s\n' '  --majel-dir=           used to alter path to Majel.py (default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main)'
+    printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False")'
     printf '%s\n' '                         Note: this list of additional arguments must be contained within quotation marks'
+    printf '%s\n' '  --from-scratch         the Majel.py pipeline will NOT continue from where it left off but instead will start over, overwriting steps that might already have been completed'
     printf '\n'
     exit 1
 fi
 
 LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/1_sbatch_parallel_sra_wget.log
-> "$LOG_FILE"
+if [[ -z $FROM_SCRATCH ]]; then
+    > $LOG_FILE
+else
+   touch $LOG_FILE
+fi
 
 check_argument "project-dir" $PROJECT_DIR
 check_argument "sample-name" $SAMPLE_NAME
@@ -142,7 +154,7 @@ if hash slurm 2> /dev/null; then
     SUB_PREFIX="sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
 fi
 
-#remove extraneous quotation marks that can occur when us the --sample-file= option
+#remove extraneous quotation marks that can occur when using the --sample-file= option
 RUN_LIST=$(echo "$RUN_LIST" | tr -d '"')
 [[ -z $MAJEL_ARGS ]] || MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
 
@@ -155,27 +167,43 @@ mkdir -p $DATA_DIR
 
 cd $DATA_DIR
 RUN_LIST=($RUN_LIST)
-printf '%s\n' "${RUN_LIST[@]}" | parallel -j20 'eval "wget -c -O {}.sra $(srapath {})"' &> $PROJECT_DIR/$SAMPLE_NAME/sra_downloads.log
-
-COUNT=0
-for SRA in ${RUN_LIST[@]}; do
-    if [[ -s $SRA.sra ]]; then
-	printf '%s\n' "$SRA.sra exists and is not empty" | tee -a $LOG_FILE
-    else
-        printf '%s\n' "$SRA.sra doesn't exist or is empty" | tee -a $LOG_FILE
-        COUNT=$((COUNT+1))
-    fi
-done
-
-if [[ "$COUNT" -gt 0 ]]; then
-    printf '%s\n' "Error: $COUNT SRA file(s) specified in --run-list= doesn't exist or is empty. Exiting pipeline." | tee -a $LOG_FILE
-    exit 1
+LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/1_sbatch_parallel_sra_wget.log
+DL_LOG="$PROJECT_DIR/$SAMPLE_NAME/sra_downloads.log"
+if [[ -z $FROM_SCRATCH ]]; then
+    > $LOG_FILE 
+    > $DL_LOG
+else
+    touch $LOG_FILE $DL_LOG
 fi
 
+dl_sras() {
+
+    for ((i=1;i<=DL_ATTEMPTS;i++)); do
+        unset RETRY
+        printf '%s\n' "${RUN_LIST[@]}" | parallel -j20 "eval $1" &>> $DL_LOG
+
+        for SRA in ${RUN_LIST[@]}; do
+	    vdb-validate $SRA.sra &>> $LOG_FILE || RETRY='true'; break
+        done
+    
+        if [[ $RETRY != 'true' ]]; then
+            break
+        fi
+    done
+
+}
+
+
+for SRA in ${RUN_LIST[@]}; do vdb-validate $SRA.sra &>> $LOG_FILE; done || dl_sras 'aria2c -c -x 16 -o {}.sra $(srapath {})'
+[[ $RETRY != 'true' ]] || dl_sras 'wget -c -nv -O {}.sra $(srapath {})'
+[[ $RETRY != 'true' ]] || { printf '%s\n' "Error: one or more SRA files failed validation" | tee -a $LOG_FILE ; error 1; }
+
+rm *.sra.aria2
+
 cd $PROJECT_DIR/$SAMPLE_NAME
-SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR \
---rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH \
---sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" &> slurm_majel_stdout.log$SUB_SUFFIX"
+SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR $FROM_SCRATCH\
+--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --aligner-threads=$ALIGNER_THREADS \
+--sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\""
 
 TIME=$(date '+%B %d %T %Z %Y')
 printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
