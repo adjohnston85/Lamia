@@ -350,7 +350,7 @@ completion_check() {
 
     CHECK='false'	
     for FILE in $CHECK_FILES; do
-        for PHRASE in "${CHECK_PHRASES[@]}; do
+        for PHRASE in "${CHECK_PHRASES[@]}"; do
 	    if grep -q -s "$PHRASE" $PROJECT_DIR/$SAMPLE_NAME/$FILE; then
                 CHECK='true'
 		break 1
