@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=01-00
+#SBATCH --time=08:00:00
 #SBATCH --ntasks-per-node=1
 #SBATCH --output=sbatch.out
 #SBATCH --mail-type=ALL

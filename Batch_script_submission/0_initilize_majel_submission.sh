@@ -1,15 +1,14 @@
 #!/bin/bash
+#SBATCH --time=05-00
+#SBATCH --output=sbatch.out
 
 HELP='false'
 SKIP_PROMPT='false'
-FROM_SCRATCH=''
+JOB_DIR=$PWD
 
 #function to set or reset default values
 set_defaults() {
     
-    #by default this script can be run from a SAMPLE directory within a PROJECT directory ( e.g. /path/to/PROJECT/SAMPLE )
-    PROJECT_DIR=$(dirname $PWD)
-    SAMPLE_NAME=$(basename $PWD)
     CONCURRENT_JOBS=5
 
     MAJEL_TIME='04-00'
@@ -19,6 +18,7 @@ set_defaults() {
     RSYNC_TIME='08:00:00'
     RSYNC_MEM='4gb'
     SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
+    SQLITE_DIR='/datasets/work/hb-meth-atlas/work/Data/level_2'
 
     GENOME='hg38'
     GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
@@ -33,7 +33,12 @@ set_defaults() {
 
     RUN_FILES=()
 
+    WHOLE_EXPERIMENT='false'
+
+    unset SAMPLE_NAME
+    unset PROJECT_NAME
     unset RUN_LIST
+    unset EXPERIMENT_ACCESSION
     unset RUN_DIR
     unset MAJEL_ARGS
     unset FAIL
@@ -54,9 +59,15 @@ check_argument() {
 get_arguments() {
     while [[ $# -gt 0 ]]; do
     case "$1" in
-        --project-dir=*)
-          PROJECT_DIR="${1#*=}"
+        --job-dir=*)
+          JOB_DIR="${1#*=}"
           ;;
+	--sqlite-dir=*)
+          SQLITE_DIR="${1#*=}"
+	  ;;
+	--project-name=*)
+          PROJECT_NAME="${1#*=}"
+	  ;;
         --sample-name=*)
           SAMPLE_NAME="${1#*=}"
           ;;
@@ -76,11 +87,17 @@ get_arguments() {
               RUN_LIST+=" ${1#*=}"
           fi
           ;;
+        --whole-experiment*)
+          WHOLE_EXPERIMENT="${1#*t}"
+	  ;;
+	--experiment-accession=*)
+          EXPERIMENT_ACCESSION="${1#*=}"
+	  ;;
         --dl-attempts=*)
           DL_ATTEMPTS="${1#*=}"
           ;;
 	 --run-dir=*)
-           RUN_DIR="${1#*=}"
+          RUN_DIR="${1#*=}"
           ;;
         --majel-time=*)
           MAJEL_TIME="${1#*=}"
@@ -115,9 +132,6 @@ get_arguments() {
         --majel-args=*)
           MAJEL_ARGS="${1#*=}"
           ;;
-	--from-scratch*)
-          FROM_SCRATCH="${1#*t}--from-scratch "
-          ;;
         --skip-prompt*)
           SKIP_PROMPT="${1#*t}"
           ;;
@@ -144,12 +158,9 @@ set_fixes() {
 
 job_submission() {
    
+    PROJECT_DIR="$JOB_DIR/$PROJECT_NAME"
     SAMPLE_DIR="$PROJECT_DIR/$SAMPLE_NAME"
     mkdir -p "$SAMPLE_DIR/data"
-
-    if [[ -z $FROM_SCRATCH ]]; then
-        rm -f $SAMPLE_DIR/*.log
-    fi
 
     LOG_FILE="$SAMPLE_DIR/0_initilize_majel_submission.log"
     touch $LOG_FILE
@@ -163,7 +174,9 @@ job_submission() {
     printf '%s'     " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --run-list=\"$RUN_LIST\"" | tee -a $LOG_FILE
     printf '%s\n\n' " --run-dir=${RUN_DIR}" | tee -a $LOG_FILE 
 
-    #check the values of mandatory arguments 
+    #check the values of mandatory arguments
+    check_argument "job-dir" $JOB_DIR
+    check_argument "project-name" $PROJECT_NAME 
     check_argument "project-dir" $PROJECT_DIR
     check_argument "sample-name" $SAMPLE_NAME
 
@@ -180,14 +193,6 @@ job_submission() {
         
     #covert path variable to full path (i.e. ./destionation -> /full/path/to/destionation)
     PROJECT_DIR="$(cd $PROJECT_DIR && pwd)"
-
-    if [[ $RUN_LIST != *"}"* ]]; then
-        #removes potential " arifacts that can arise when --run-list= is specified in the SAMPLE_FILE as a string series
-        RUN_LIST="$(echo $RUN_LIST | tr -d '"')"
-    else
-        #converts a specified range ( e.g. --run-list=SRR1{1..3} ) into a string series ( e.g. --run-list="SRR1 SRR2 SRR3" )
-        RUN_LIST=$RUN_LIST
-    fi
 
     #if SRAs were not specified for download make sure sequence files exist in /data directory
     if [[ ! -z $RUN_DIR ]] && [[ ! -z $RUN_LIST ]]; then
@@ -269,7 +274,7 @@ job_submission() {
         set_fixes "sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
  
         #set job submission variable for if --run-list= was not declared (skips SRA download script)
-        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR $FROM_SCRATCH"
+        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR "
         SUBMISSION+="--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH "
         SUBMISSION+="--sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --aligner-threads=$ALIGNER_THREADS --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     else
@@ -283,7 +288,7 @@ job_submission() {
 
         ##set job submission variable for if --run-list= was declared
         SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --aligner-threads=$ALIGNER_THREADS "
-        SUBMISSION+="--run-list=\"$RUN_LIST\" --dl-attempts=$DL_ATTEMPTS --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR $FROM_SCRATCH--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
+        SUBMISSION+="--run-list=\"$RUN_LIST\" --dl-attempts=$DL_ATTEMPTS --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
         SUBMISSION+="--sync-to=$SYNC_TO --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     fi
 
@@ -312,14 +317,17 @@ job_submission() {
         printf '%s\n\n' "Job was not submitted" | tee -a $LOG_FILE
 	exit 1
     fi
-        
+    
+    SAMPLE_ARRAY+=("$PROJECT_DIR/$SAMPLE_NAME")
+    CSV_ARRAY+=("$line")
+
     printf '~%.0s' {1..150}
     printf '\n\n'
 }
 
 
 LEDGER_TITLES="Data Type,Sample_Name,Organism,Tissue,Sub-Tissue,Disease Status,User Name,Date Processed,"
-LEDGER_TITLES+="Citation,Repository,Input File(s),Notes,hg38,Directory location 1,Directory location 2,Notes,"
+LEDGER_TITLES+="Citation,Repository,Input File(s),Notes,genome,Directory location 1,Directory location 2,Notes,"
 
 ledger_check() {
     
@@ -335,14 +343,14 @@ ledger_check() {
 }
 
 
-CHECK_PHRASES="methylseekrAndTDF Error:"
+CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:")
 CHECK_FILES="slurm_majel_stdout.log 0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log"
 
 completion_check() {
 
     CHECK='false'	
     for FILE in $CHECK_FILES; do
-        for PHRASE in $CHECK_PHRASES; do
+        for PHRASE in "${CHECK_PHRASES[@]}; do
 	    if grep -q -s "$PHRASE" $PROJECT_DIR/$SAMPLE_NAME/$FILE; then
                 CHECK='true'
 		break 1
@@ -383,7 +391,7 @@ submission_cycle() {
     do
         SAMPLE_NAME=$(basename ${SAMPLE_ARRAY[i]})
         PROJECT_DIR=$(dirname ${SAMPLE_ARRAY[i]})
-        PROJECT_NAME=$(basename ${PROJECT_DIR})
+	PROJECT_NAME=$(basename $PROJECT_DIR)
         completion_check
        
         if [[ $CHECK == 'true' ]]; then
@@ -391,15 +399,15 @@ submission_cycle() {
 	    CSV=(); while read -rd,; do CSV+=("$(echo "${REPLY^}")"); done <<<"${CSV_ARRAY[i]},"
             DATE=$(date '+%Y-%m-%d')
 	 
-	    if [[ ! -z ${CSV[5]} ]]; then
-                USER_NAME=${CSV[5]}
+	    if [[ ! -z ${CSV[4]} ]]; then
+                USER_NAME=${CSV[4]}
             elif [[ ! -z $EMAIL ]]; then
                 USER_NAME="$(echo  "${EMAIL^}" | cut -d @ -f 1 | tr '.' ' ' | sed 's/ [[:lower:]]/\U&/g')"
             else
                 USER_NAME=$USER
             fi
             LEDGER_INFO=",${SAMPLE_NAME},,${CSV[0]},${CSV[1]},${CSV[2]},$USER_NAME,${DATE},,${PROJECT_NAME},"
-            LEDGER_INFO+="${CSV[4]},,${GENOME},${SYNC_TO}/${PROJECT_NAME}/${SAMPLE_NAME},,,"    
+            LEDGER_INFO+="${CSV[3]},,${GENOME},${SYNC_TO}/${PROJECT_NAME}/${SAMPLE_NAME},,,"    
             
 	    if grep -q -s "MethylSeekR and toTDF Completed" ${SAMPLE_ARRAY[i]}/slurm_majel_stdout.log; then
                 ledger_check "completed" "$LEDGER_INFO"
@@ -425,8 +433,59 @@ submission_cycle() {
             i=0
         fi
 
-        sleep 1s
+        sleep 10m
     done
+}
+
+
+sql_dl() {
+    if [[ -z $1 ]]; then
+        printf '%s\n' "Error: $2 could not be located in $SQLITE_DIR/SRAmetadb.sqlite."
+        printf '%s\n' "A job to check for and download the most recent version has been submitted."
+        printf '%s\n' "Check inputs or try again once download and decompression is completed"
+    
+        SQ_URL='https://s3.amazonaws.com/starbuck1/sradb/SRAmetadb.sqlite.gz'
+        SQ_BACKUP='https://gbnci-abcc.ncifcrf.gov/backup/SRAmetadb.sqlite.gz'
+        if hash slurm 2> /dev/null; then
+            SUBMISSION="sbatch --job-name 'wget_SRAmetadb.sqlite' --time 02:00:00 --mail-type=ALL --mail-user=$EMAIL --partition io --wrap "
+            SUBMISSION+="aria2c --conditional-get --allow-overwrite -x 16 -d $SQLITE_DIR -o SRAmetadb.sqlite.gz SQ_URL; gunzip -f -k $SQLITE_DIR/SRAmetadb.sqlite.gz"
+            eval $SUBMISSION
+        else
+            aria2c -x 16 --conditional-get --allow-overwrite -d $SQLITE_DIR -o SRAmetadb.sqlite.gz $SQ_URL
+            gunzip -f -k $SQLITE_DIR/SRAmetadb.sqlite.gz
+        fi
+    
+        exit 1
+    fi
+}
+
+
+get_run_list() {
+    #if the --run-list was not specified then grab the run files from the --sample-file table
+    FIRST_RUN=($(echo $1 | tr ';' ' '))
+    #if --experiment-accession was specified, use this to procure then run files
+    if [[ ! -z $EXPERIMENT_ACCESSION ]]; then
+        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$EXPERIMENT_ACCESSION'")
+        sql_dl $RUN_LIST $EXPERIMENT_ACCESSION
+    #if the --whole-experiment option was not specified then then assume the run file specified in the table is an experiment_accession
+    elif [[ ! -z $WHOLE_EXPERIMENT ]]; then
+        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$FIRST_RUN'")
+        #if the run file specified is not found as an experiment_accession then assume a list of SRA files was provided
+        if [[ -z $RUN_LIST ]]; then
+            RUN_LIST=$(echo $1 | tr ';' ' ')
+        fi
+    #if --whole-experiment option was set then use the SRA file specified in the table to procure all run files from the same experiment
+    else
+        EXPERIMENT_ACCESSION=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select experiment_accession from run where run_accession='$FIRST_RUN'")
+        printf '%s\n' "--whole-experiment option selected. SRA file $FIRST_RUN specified in --run-list is part of experiment $EXPERIMENT_ACCESSION. Locating other SRA files from this experiment in $SQLITE_DIR/SRAmetadb.sqlite..."
+        sql_dl $EXPERIMENT_ACCESSION $FIRST_RUN
+        
+        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$EXPERIMENT_ACCESSION'")
+    fi
+
+    #At this point the run list may be in a string or range (e.g. SRR123{1..4}) format. This coverts range to string.
+    RUN_LIST=$(eval 'echo ${RUN_LIST[@]} | tr -d "\""')
+    RUN_ARRAY=($RUN_LIST)
 }
 
 
@@ -440,7 +499,7 @@ if [ -z $HELP ]; then
     printf '%s\n' '[--majel-mem=<size[units]> [--rsync-time=<time>] [--rsync-mem=<size[units]>]'
     printf '\n'
     printf '%s\n' 'Mandatory arguments:'
-    printf '%s\n' '  --project-dir=         sets path to the project directory containing the sample directory (e.g. --project-dir=/scratch1/usr001/PRJNA123456)'
+    printf '%s\n' '  --job-dir=             sets path to the job directory containing the project and sample directories (e.g. --job-dir=/scratch1/usr001)'
     printf '%s\n' '  --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678)'
     printf '%s\n' '                         the sample name must correspond to a directory in the project directory and conform to the Majel.py naming conventions'
     printf '%s\n' '                         the sample directory must contain a data/ directory containing either SRA (.sra) or FASTQ (.fq or .fastq) files'
@@ -449,14 +508,16 @@ if [ -z $HELP ]; then
     printf '%s\n' '                         not required when running on a system that does not use SLURM (e.g. the SHIRO-RI workstation)'
     printf '\n'
     printf '%s\n' 'Optional arguments:'
+    printf '%s\n' '  --project-name=        sets name of the project. This will be used to create a project directory (e.g --project-name=PRJN12334)'
     printf '%s\n' '  --sample-file=         sets path to a tab or comma delimited file containing sample information to run through pipeline (e.g. --sample-name=/scratch1/usr001/samples.csv)'
+    printf '%s\n' '                         Note: any arguments declared in this file will override those declared globally'
     printf '%s\n' '  --concurrent-jobs      if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted from the <sample-file> at any one time'
-    printf '%s\n' '                         Note: for each line of this sample file any arguments generated or contained will override those declared globally'
-    printf '%s\n' '  --run-list=            sets the list of sequence files for downloaded or soft linking (e.g. --run-list="SRR1234567 SRR1234568" OR --SRA-array=SRR123456{7..8} )'
+    printf '%s\n' '  --run-list=            sets the list of sequence files for downloaded or soft linking (e.g. --run-list="SRR1234567 SRR1234568" OR --run-list=SRR123456{7..8} )'
     printf '%s\n' '                         Note: as per the example the list must be contained within quotation marks and sperated by spaces'
-    printf '%s\n' '  --dl-attempts          sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
+    printf '%s\n' '  --whole-experiment     if a single SRA file is specified in --run-list= all other SRA files from the same experiment will be downloaded an run'
+    printf '%s\n' '  --dl-attempts=         sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
     printf '%s\n' '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
-    printf '%s\n' '  --run-dir              sets the directory where the run files specified in --run-list= will be soft linked from'
+    printf '%s\n' '  --run-dir=             sets the directory where the run files specified in --run-list= will be soft linked from'
     printf '%s\n' '  --majel-time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
     printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=20)'
     printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=60gb'
@@ -468,9 +529,9 @@ if [ -z $HELP ]; then
     printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (default: --majel-threads=6)'
     printf '%s\n' '  --majel-dir=           used to alter path to Majel.py (default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main)'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False")'
-    printf '%s\n' '                         Note: this list of additional arguments must be contained within quotation marks'    
+    printf '%s\n' '                         Note: this list of additional arguments must be contained within quotation marks'
+    printf '%s\n' '  --sqlite-dir=          directory containing SRAmetadb.sqlite'
     printf '%s\n' '  --skip-prompt          skips user confirmation (y/n) step'
-    printf '%s\n' '  --from-scratch         the Majel.py pipeline will NOT continue from where it left off but instead will start over, overwriting steps that might already have been completed'
     printf '\n'
     exit 1
 fi
@@ -494,21 +555,38 @@ if [[ ! -z $SAMPLE_FILE ]]; then
             set_defaults
 
 	    CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"
-            SAMPLE_NAME=$(IFS=_ ; CELLS="${CSV[*]:0:4}"; echo "${CELLS^}" | sed 's/ [[:lower:]]/\U&/g' | tr -d ' ' | sed 's/_[[:lower:]]/\U&/g')
             
-            if [[ $SAMPLE_NAME != "Tissue_Sub-Tissue_DiseaseStatus_SampleInfo" ]]; then
-                ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"${CSV[6]}; "
-                get_arguments "$@"
-                get_arguments "${ARGS[@]}"
+            ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"${CSV[5]}; "
+            get_arguments "$@"
+            get_arguments "${ARGS[@]}"
 
-                if [[ ! -z ${CSV[4]} ]]; then
-                    RUN_LIST="\"$(echo ${CSV[4]} | tr ';' ' ')\""
+	    #if the --run-list was not specified then grab the run files from the --sample-file table 
+	    if [[ -z $RUN_LIST ]]; then
+                RUN_LIST=${CSV[3]}
+            fi
+
+            get_run_list $RUN_LIST
+
+	    #If --sample-name was not specified then make the sample name from sample-file table. Use SRA to determine experiment accession and project
+	    if [[ -z $SAMPLE_NAME ]]; then
+	        SAMPLE_NAME=$(IFS=_ ; CELLS="${CSV[*]:0:3}"; echo "${CELLS^}" | sed 's/ [[:lower:]]/\U&/g' | tr -d ' ' | sed 's/_[[:lower:]]/\U&/g')
+	        
+		if [[ -z $RUN_DIR ]]; then
+		    SQL_QUERY="select experiment_accession from experiment where experiment_accession in (select experiment_accession from run where run_accession='${RUN_ARRAY[0]}')"
+	            SAMPLE_NAME+="_$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "$SQL_QUERY")"
+		else
+	            SAMPLE_NAME+="_${RUN_ARRAY[0]}"
                 fi
+    
+	        if [[ -z $PROJECT_NAME ]]; then
+	            SQL_QUERY="select study_accession from study where study_accession in (select study_accession from experiment where "
+	            SQL_QUERY+="experiment_accession in (select experiment_accession from run where run_accession='${RUN_ARRAY[0]}'))"
+                    PROJECT_NAME=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "$SQL_QUERY")
+                    sql_dl $PROJECT_NAME ${RUN_ARRAY[0]}
+                fi
+            fi
 
-                job_submission
-                SAMPLE_ARRAY+=("$PROJECT_DIR/$SAMPLE_NAME")
-		CSV_ARRAY+=("$line")
-            fi 
+            job_submission
           
             if [[ ${#SAMPLE_ARRAY[@]} -ge $CONCURRENT_JOBS ]]; then
                 printf '%s'     "The maximum number of concurrent Majel.py jobs (--concurrent-jobs=$CONCURRENT_JOBS) has been reached. "
@@ -530,12 +608,10 @@ if [[ ! -z $SAMPLE_FILE ]]; then
     fi
 else
     #submit a single job if SAMPLE_FILE was not declared
-    SINGLE_JOB='true'
+    get_run_list $RUN_LIST
     job_submission 
-    SAMPLE_ARRAY+=("$PROJECT_DIR/$SAMPLE_NAME")
     SAMPLE_INFO=(""$(echo $SAMPLE_NAME | tr '_' ' ')"")
     line="$(echo "${SAMPLE_INFO[*]:0:3}" | tr ' ' ','),,,$(echo $RUN_LIST | tr ' ' ';' | tr -d '"'),,,"
     CSV_ARRAY+=($line)
-    submission_cycle 1
 fi
 
