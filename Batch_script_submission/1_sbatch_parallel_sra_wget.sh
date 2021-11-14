@@ -23,18 +23,19 @@ SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
 ALIGNER_THREADS='4'
-MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
+MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/'
 
 DL_ATTEMPTS=5
 DL_ONLY='false'
 
 #function checks if mandatory arguments have been set
 check_argument() {
+
     if [ -z "$2" ];then
         printf '%s\n\n' "Error: --${1}= argument not set" | tee -a $LOG_FILE
         exit 1
-   fi
-   printf '%s\n' "--${1}=$2" | tee -a $LOG_FILE
+    fi
+    printf '%s\n' "--${1}=$2" | tee -a $LOG_FILE
 }
 
 #grab input argument values
@@ -168,25 +169,38 @@ RUN_LIST=($RUN_LIST)
 DL_LOG="$PROJECT_DIR/$SAMPLE_NAME/sra_downloads.log"
 touch $DL_LOG
 
+validate_sra() {
+
+    RUN_LIST=()
+    for SRA in ${1[@]}; do
+
+        BEGIN=$SECONDS
+        timeout 180 vdb-validate $SRA.sra &>> $LOG_FILE
+        ELAPSED=$((SECONDS-BEGIN))        
+
+        if [[ $? -ne 0 ]] && [[ $ELAPSED -lt 180 ]]; then
+            RETRY='true'
+            RUN_LIST+="SRA"
+        fi
+    done
+}
+
 dl_sras() {
 
     for ((i=1;i<=DL_ATTEMPTS;i++)); do
         unset RETRY
         printf '%s\n' "${RUN_LIST[@]}" | parallel -j20 "eval $1" &>> $DL_LOG
 
-        for SRA in ${RUN_LIST[@]}; do
-	    vdb-validate $SRA.sra &>> $LOG_FILE || RETRY='true'; break
-        done
+        validate_sra $RUN_LIST
     
         if [[ $RETRY != 'true' ]]; then
             break
         fi
     done
-
 }
 
-
-for SRA in ${RUN_LIST[@]}; do vdb-validate $SRA.sra &>> $LOG_FILE; done || dl_sras 'aria2c -c -x 16 -o {}.sra $(srapath {})'
+validate_sra $RUN_LIST
+[[ $RETRY != 'true' ]] || dl_sras 'aria2c -c -x 16 -o {}.sra $(srapath {})'
 [[ $RETRY != 'true' ]] || dl_sras 'wget -c -nv -O {}.sra $(srapath {})'
 [[ $RETRY != 'true' ]] || { printf '%s\n' "Error: one or more SRA files failed validation" | tee -a $LOG_FILE ; error 1; }
 

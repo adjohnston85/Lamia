@@ -26,7 +26,7 @@ set_defaults() {
 
     DL_ATTEMPTS='5'
 
-    SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
+    SCRIPT_DIR="/home/joh592/majel_wgbspipline_AJ/majel_wgbspipline/Batch_script_submission"
     #the Majel.py script is located one directory up from to bash scripts directory
     MAJEL_DIR="$(dirname "$SCRIPT_DIR")"
 

@@ -19,23 +19,24 @@ module load bedtools/2.26.0
 module load methyldackel/0.4.0
 module load python/3.7.2
 module load parallel/20190722
+module load parallel-fastq-dump/0.6.7
 
 #petrichor meodules
-module load bowtie/2.4.4
-module load fastqc/0.11.9
-module load bismark/0.23.0
-module load trimgalore/0.6.6
-module load sratoolkit/2.11.0
-module load samtools/1.12
-module load bismark/0.23.0
-module load picard/2.25.5
-module load R/4.0.5
-module load bedtools/2.30.0
-module load python/3.9.4
-module load parallel/20210322
-module load parallel-fastq-dump/0.6.7
-module load igvtools/2.11.3
-module load methyldackel/0.6.1
+#module load bowtie/2.4.4
+#module load fastqc/0.11.9
+#module load bismark/0.23.0
+#module load trimgalore/0.6.6
+#module load sratoolkit/2.11.0
+#module load samtools/1.12
+#module load bismark/0.23.0
+#module load picard/2.25.5
+#module load R/4.0.5
+#module load bedtools/2.30.0
+#module load python/3.9.4
+#module load parallel/20210322
+#module load parallel-fastq-dump/0.6.7
+#module load igvtools/2.11.3
+#module load methyldackel/0.6.1
 
 HELP='false'
 FROM_SCRATCH='false'
@@ -48,11 +49,9 @@ GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
 ALIGNER_THREADS='4'
 
-#fetches the directory from which this script is located and run
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
 #the Majel.py script is located one directory up from to bash scripts directory
 MAJEL_DIR="$(dirname "$SCRIPT_DIR")"
-
 
 #function checks if mandatory arguments have been set
 check_argument() {
