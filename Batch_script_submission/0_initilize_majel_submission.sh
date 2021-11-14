@@ -26,15 +26,16 @@ set_defaults() {
 
     DL_ATTEMPTS='5'
 
-    #fetches the directory from which this script is located and run
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+    SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
     #the Majel.py script is located one directory up from to bash scripts directory
     MAJEL_DIR="$(dirname "$SCRIPT_DIR")"
 
     RUN_FILES=()
 
     WHOLE_EXPERIMENT='false'
-
+    SKIP_DL='false'
+    
+    unset DL_ONLY
     unset SAMPLE_NAME
     unset PROJECT_NAME
     unset RUN_LIST
@@ -47,6 +48,7 @@ set_defaults() {
 
 #function checks if arguments have been set and prints their values
 check_argument() {
+
     if [[ -z "$2" ]] || [[ $2 == '\"\"' ]]; then
         printf '%s\n\n' "Error: --${1}= argument not set" | tee -a $LOG_FILE
         FAIL='true'
@@ -57,6 +59,7 @@ check_argument() {
 
 #function to grab input argument values
 get_arguments() {
+
     while [[ $# -gt 0 ]]; do
     case "$1" in
         --job-dir=*)
@@ -90,6 +93,12 @@ get_arguments() {
         --whole-experiment*)
           WHOLE_EXPERIMENT="${1#*t}"
 	  ;;
+        --skip-dl)
+          SKIP_DL='true'
+          ;;
+        --dl-only)
+          DL_ONLY="--dl-only "
+          ;;
 	--experiment-accession=*)
           EXPERIMENT_ACCESSION="${1#*=}"
 	  ;;
@@ -128,15 +137,16 @@ get_arguments() {
           ;;
         --majel-dir=*)
           MAJEL_DIR="${1#*=}"
+          SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
           ;;
         --majel-args=*)
           MAJEL_ARGS="${1#*=}"
           ;;
-        --skip-prompt*)
-          SKIP_PROMPT="${1#*t}"
+        --skip-prompt)
+          SKIP_PROMPT='true'
           ;;
-        --help*)
-          HELP="${1#*p}"
+        --help)
+          unset HELP
           ;;
          *)
     esac
@@ -146,6 +156,7 @@ get_arguments() {
 
 
 set_fixes() {   
+
     if hash slurm 2> /dev/null; then
         SUB_PREFIX="$1"
         unset SUB_SUFFIX
@@ -163,10 +174,10 @@ job_submission() {
     mkdir -p "$SAMPLE_DIR/data"
 
     LOG_FILE="$SAMPLE_DIR/0_initilize_majel_submission.log"
-    touch $LOG_FILE
+    > $LOG_FILE
 
     PARAMETERS_FILE="$SAMPLE_DIR/run_parameters_$SAMPLE_NAME.txt"
-    touch $PARAMETERS_FILE
+    > $PARAMETERS_FILE
 
     #print time and script inputs
     printf '%s'     "$BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME " | tee -a $LOG_FILE
@@ -196,14 +207,12 @@ job_submission() {
 
     #if SRAs were not specified for download make sure sequence files exist in /data directory
     if [[ ! -z $RUN_DIR ]] && [[ ! -z $RUN_LIST ]]; then
-        for FILE_PREFIX in $RUN_LIST
-        do
+        for FILE_PREFIX in $RUN_LIST; do
 	    if [[ -d $RUN_DIR ]]; then
 		RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)_?[rR]?[12]?\.(fq|fastq|sra)\.?(gz)?"))
 		
 		if [[ ! -z $RUN_FILES ]]; then
-                    for FILE in ${RUN_FILES[@]}
-                    do
+                    for FILE in ${RUN_FILES[@]}; do
 		        ln -sf $FILE $PROJECT_DIR/$SAMPLE_NAME/data/$(basename $FILE)
                     done
                 else
@@ -263,13 +272,13 @@ job_submission() {
         printf '%s\n\n' "Majel will run on the following files located in $PROJECT_DIR/$SAMPLE_NAME/data:" | tee -a $LOG_FILE
     fi
     
-    for FILE in ${RUN_FILES[@]}
-    do
+    for FILE in ${RUN_FILES[@]}; do
         printf '%s' "$(basename $FILE) " | tee -a $LOG_FILE
-    done       
+    done
+       
     printf '\n\n' | tee -a $LOG_FILE
 
-    if [[ -z $RUN_LIST ]] || [[ ! -z $RUN_DIR ]]; then
+    if [[ -z $RUN_LIST ]] || [[ ! -z $RUN_DIR ]] || [[ $SKIP_DL == "true" ]]; then
 
         set_fixes "sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
  
@@ -289,17 +298,19 @@ job_submission() {
         ##set job submission variable for if --run-list= was declared
         SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --aligner-threads=$ALIGNER_THREADS "
         SUBMISSION+="--run-list=\"$RUN_LIST\" --dl-attempts=$DL_ATTEMPTS --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
-        SUBMISSION+="--sync-to=$SYNC_TO --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
+        SUBMISSION+="--sync-to=$SYNC_TO --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR $DL_ONLY--majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     fi
 
     #print job parameters and sbatch submission for user to check
     printf '%s\n\n' "These parameters will result in the following submission:" | tee -a $LOG_FILE
     printf '%s\n\n' "$SUBMISSION" | tee -a $LOG_FILE
 
-    printf '%s\n\n' "These parameters will result in the following Majel.py job:" | tee -a $LOG_FILE
-    printf '%s'     "python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME " | tee -a $LOG_FILE
-    printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}" | tee -a $LOG_FILE
-    printf '%s\n\n' "-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log" | tee -a $LOG_FILE
+    if [[ -z $DL_ONLY ]]; then
+        printf '%s\n\n' "These parameters will result in the following Majel.py job:" | tee -a $LOG_FILE
+        printf '%s'     "python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME " | tee -a $LOG_FILE
+        printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}" | tee -a $LOG_FILE
+        printf '%s\n\n' "-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log" | tee -a $LOG_FILE
+    fi
 
     #skip user confirmation step if --skip-promt argument was set
     if [[ $SKIP_PROMPT == "false" ]]; then
@@ -343,7 +354,7 @@ ledger_check() {
 }
 
 
-CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:")
+CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:" "dl-only completed")
 CHECK_FILES="slurm_majel_stdout.log 0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log"
 
 completion_check() {
@@ -353,7 +364,6 @@ completion_check() {
         for PHRASE in "${CHECK_PHRASES[@]}"; do
 	    if grep -q -s "$PHRASE" $PROJECT_DIR/$SAMPLE_NAME/$FILE; then
                 CHECK='true'
-		break 1
 		break 2
             fi
         done
@@ -363,32 +373,28 @@ completion_check() {
 
 report_jobs() {
 
-printf '%s\n' "Failed samples:"
-for SAMPLE in "${FAIL_ARRAY[@]}"
-do
-    printf '%s\n' "$SAMPLE"
-done
-
-printf '\n%s\n' "Samples completed successfully:"
-for SAMPLE in "${SUCCESS_ARRAY[@]}"
-do
-    printf '%s\n' "$SAMPLE"
-done
-
-printf '\n%s\n' "Samples currently running:"
-for SAMPLE in "${SAMPLE_ARRAY[@]}"
-do
-    printf '%s\n' "$SAMPLE"
-done
-printf '\n'
+    printf '%s\n' "Failed samples:"
+    for SAMPLE in "${FAIL_ARRAY[@]}"; do
+        printf '%s\n' "$SAMPLE"
+    done
+    
+    printf '\n%s\n' "Samples completed successfully:"
+    for SAMPLE in "${SUCCESS_ARRAY[@]}"; do
+        printf '%s\n' "$SAMPLE"
+    done
+    
+    printf '\n%s\n' "Samples currently running:"
+    for SAMPLE in "${SAMPLE_ARRAY[@]}"; do
+        printf '%s\n' "$SAMPLE"
+    done
+    printf '\n'
 }
 
 
 submission_cycle() {
    
     i=0
-    while [[ ${#SAMPLE_ARRAY[@]} -ge $1 ]]
-    do
+    while [[ ${#SAMPLE_ARRAY[@]} -ge $1 ]]; do
         SAMPLE_NAME=$(basename ${SAMPLE_ARRAY[i]})
         PROJECT_DIR=$(dirname ${SAMPLE_ARRAY[i]})
 	PROJECT_NAME=$(basename $PROJECT_DIR)
@@ -412,6 +418,8 @@ submission_cycle() {
 	    if grep -q -s "MethylSeekR and toTDF Completed" ${SAMPLE_ARRAY[i]}/slurm_majel_stdout.log; then
                 ledger_check "completed" "$LEDGER_INFO"
 		SUCCESS_ARRAY+=("${SAMPLE_ARRAY[i]}")
+            elif grep -q -s "dl-only completed" ${SAMPLE_ARRAY[i]}/1_sbatch_parallel_sra_wget.log; then
+                SUCCESS_ARRAY+=("${SAMPLE_ARRAY[i]}")
             else
                 ledger_check "failed" "$LEDGER_INFO"
 		FAIL_ARRAY+=("${SAMPLE_ARRAY[i]}")
@@ -439,6 +447,7 @@ submission_cycle() {
 
 
 sql_dl() {
+
     if [[ -z $1 ]]; then
         printf '%s\n' "Error: $2 could not be located in $SQLITE_DIR/SRAmetadb.sqlite."
         printf '%s\n' "A job to check for and download the most recent version has been submitted."
@@ -461,6 +470,7 @@ sql_dl() {
 
 
 get_run_list() {
+
     #if the --run-list was not specified then grab the run files from the --sample-file table
     FIRST_RUN=($(echo $1 | tr ';' ' '))
     #if --experiment-accession was specified, use this to procure then run files
@@ -550,8 +560,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
 	FAIL_ARRAY=()
 	SUCCESS_ARRAY=()
 
-        while read line
-        do
+        while read line; do
             set_defaults
 
 	    CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"

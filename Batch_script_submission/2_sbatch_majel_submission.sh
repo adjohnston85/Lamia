@@ -5,6 +5,7 @@
 #SBATCH --output=sbatch.out
 #SBATCH --mail-type=ALL 
 
+#pearcey meodules
 module load bowtie/2.2.9
 module load fastqc/0.11.5
 module load bismark/0.18.1
@@ -18,6 +19,23 @@ module load bedtools/2.26.0
 module load methyldackel/0.4.0
 module load python/3.7.2
 module load parallel/20190722
+
+#petrichor meodules
+module load bowtie/2.4.4
+module load fastqc/0.11.9
+module load bismark/0.23.0
+module load trimgalore/0.6.6
+module load sratoolkit/2.11.0
+module load samtools/1.12
+module load bismark/0.23.0
+module load picard/2.25.5
+module load R/4.0.5
+module load bedtools/2.30.0
+module load python/3.9.4
+module load parallel/20210322
+module load parallel-fastq-dump/0.6.7
+module load igvtools/2.11.3
+module load methyldackel/0.6.1
 
 HELP='false'
 FROM_SCRATCH='false'
@@ -138,15 +156,9 @@ fi
 cd $PROJECT_DIR/$SAMPLE_NAME
 
 SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
-
 LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/2_sbatch_majel_submission.log
-if [[ -z $FROM_SCRATCH ]]; then
-    >$LOG_FILE
-    > slurm_majel_stdout.log
-    rm -f ./.ruffus_history.sqlite
-else
-    touch slurm_majel_stdout.log $PROJECT_DIR/$SAMPLE_NAME/2_sbatch_majel_submission.log
-fi
+
+> $LOG_FILE
 
 SUBMISSION="python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME \
 --genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}\

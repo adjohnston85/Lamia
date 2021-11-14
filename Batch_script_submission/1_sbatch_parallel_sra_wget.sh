@@ -7,6 +7,7 @@
 
 module load sratoolkit/2.9.6-1
 module load parallel/20190722
+module load aria2/1.35.0
 
 HELP='false'
 FROM_SCRATCH=''
@@ -25,6 +26,7 @@ ALIGNER_THREADS='4'
 MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
 
 DL_ATTEMPTS=5
+DL_ONLY='false'
 
 #function checks if mandatory arguments have been set
 check_argument() {
@@ -54,6 +56,9 @@ while [ $# -gt 0 ]; do
     --dl-attempts=*)
       DL_ATTEMPTS="${1#*=}"
       ;;      
+    --dl-only)
+      DL_ONLY='true'
+      ;;
     --majel-time=*)
       MAJEL_TIME="${1#*=}"
       ;;
@@ -93,11 +98,8 @@ while [ $# -gt 0 ]; do
     --majel-args=*)
       MAJEL_ARGS="${1#*=}"
       ;;
-    --from-scratch*)
-      FROM_SCRATCH="${1#*t}--from-scratch "
-      ;;
-    --help*)
-      HELP="${1#*p}"
+    --help)
+      unset HELP
       ;;
     *)
   esac
@@ -133,17 +135,12 @@ if [ -z $HELP ];then
     printf '%s\n' '  --majel-dir=           used to alter path to Majel.py (default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main)'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False")'
     printf '%s\n' '                         Note: this list of additional arguments must be contained within quotation marks'
-    printf '%s\n' '  --from-scratch         the Majel.py pipeline will NOT continue from where it left off but instead will start over, overwriting steps that might already have been completed'
     printf '\n'
     exit 1
 fi
 
 LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/1_sbatch_parallel_sra_wget.log
-if [[ -z $FROM_SCRATCH ]]; then
-    > $LOG_FILE
-else
-   touch $LOG_FILE
-fi
+> $LOG_FILE
 
 check_argument "project-dir" $PROJECT_DIR
 check_argument "sample-name" $SAMPLE_NAME
@@ -167,14 +164,9 @@ mkdir -p $DATA_DIR
 
 cd $DATA_DIR
 RUN_LIST=($RUN_LIST)
-LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/1_sbatch_parallel_sra_wget.log
+
 DL_LOG="$PROJECT_DIR/$SAMPLE_NAME/sra_downloads.log"
-if [[ -z $FROM_SCRATCH ]]; then
-    > $LOG_FILE 
-    > $DL_LOG
-else
-    touch $LOG_FILE $DL_LOG
-fi
+touch $DL_LOG
 
 dl_sras() {
 
@@ -201,11 +193,16 @@ for SRA in ${RUN_LIST[@]}; do vdb-validate $SRA.sra &>> $LOG_FILE; done || dl_sr
 rm *.sra.aria2
 
 cd $PROJECT_DIR/$SAMPLE_NAME
-SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR $FROM_SCRATCH\
---rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --aligner-threads=$ALIGNER_THREADS \
---sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\""
 
 TIME=$(date '+%B %d %T %Z %Y')
-printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
-eval $SUBMISSION
+if [[ $DL_ONLY == "false" ]]; then
+    SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR "
+    SUBMISSION+="--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --aligner-threads=$ALIGNER_THREADS "
+    SUBMISSION+="--sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\""
+
+    printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
+    eval $SUBMISSION
+else
+    printf '%s\n\n' "$TIME> dl-only completed" | tee -a $LOG_FILE
+fi
 
