@@ -23,7 +23,6 @@ SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
 ALIGNER_THREADS='4'
-MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/'
 
 DL_ATTEMPTS=5
 DL_ONLY='false'
@@ -171,16 +170,17 @@ touch $DL_LOG
 
 validate_sra() {
 
+    temp=$1
     RUN_LIST=()
-    for SRA in ${1[@]}; do
-
+    for SRA in ${temp[@]}; do
         BEGIN=$SECONDS
         timeout 180 vdb-validate $SRA.sra &>> $LOG_FILE
+	ERROR=$?
         ELAPSED=$((SECONDS-BEGIN))        
 
-        if [[ $? -ne 0 ]] && [[ $ELAPSED -lt 180 ]]; then
+	if [[ ( $ERROR -ne 0 && $ELAPSED -lt 180 ) || ( -f "$SRA.sra.aria2" ) ]]; then
             RETRY='true'
-            RUN_LIST+="SRA"
+            RUN_LIST+="$SRA"
         fi
     done
 }
@@ -188,10 +188,10 @@ validate_sra() {
 dl_sras() {
 
     for ((i=1;i<=DL_ATTEMPTS;i++)); do
-        unset RETRY
+        RETRY='false'
         printf '%s\n' "${RUN_LIST[@]}" | parallel -j20 "eval $1" &>> $DL_LOG
 
-        validate_sra $RUN_LIST
+        validate_sra "${RUN_LIST[@]}"
     
         if [[ $RETRY != 'true' ]]; then
             break
@@ -201,10 +201,12 @@ dl_sras() {
 
 validate_sra $RUN_LIST
 [[ $RETRY != 'true' ]] || dl_sras 'aria2c -c -x 16 -o {}.sra $(srapath {})'
-[[ $RETRY != 'true' ]] || dl_sras 'wget -c -nv -O {}.sra $(srapath {})'
-[[ $RETRY != 'true' ]] || { printf '%s\n' "Error: one or more SRA files failed validation" | tee -a $LOG_FILE ; error 1; }
+[[ $RETRY != 'true' ]] || for SRA in ${RUN_LIST[@]}; do rm $SRA.sra.aria2 $SRA.sra; done; dl_sras 'wget -c -nv -O {}.sra $(srapath {})'
 
-rm *.sra.aria2
+if [[ $RETRY == 'true' ]]; then
+    printf '%s\n' "Error: one or more SRA files failed validation" | tee -a $LOG_FILE
+    exit 1
+fi
 
 cd $PROJECT_DIR/$SAMPLE_NAME
 

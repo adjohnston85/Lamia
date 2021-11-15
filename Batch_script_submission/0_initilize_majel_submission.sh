@@ -24,22 +24,32 @@ set_defaults() {
     GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
     ALIGNER_THREADS='4'
 
-    DL_ATTEMPTS='5'
+    if hash slurm 2> /dev/null; then
+        if [[ $USER == "joh592" ]]; then
+            SCRIPT_DIR="/home/joh592/majel_wgbspipline_AJ/majel_wgbspipline/Batch_script_submission"
+        else
+            SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
+        fi
+    else
+        #fetches the directory from which this script is located and run
+        SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+    fi
 
-    SCRIPT_DIR="/home/joh592/majel_wgbspipline_AJ/majel_wgbspipline/Batch_script_submission"
     #the Majel.py script is located one directory up from to bash scripts directory
     MAJEL_DIR="$(dirname "$SCRIPT_DIR")"
+
+    DL_ATTEMPTS='5'
 
     RUN_FILES=()
 
     WHOLE_EXPERIMENT='false'
+    EXPERIMENT_ACCESSION='false'
     SKIP_DL='false'
     
     unset DL_ONLY
     unset SAMPLE_NAME
     unset PROJECT_NAME
     unset RUN_LIST
-    unset EXPERIMENT_ACCESSION
     unset RUN_DIR
     unset MAJEL_ARGS
     unset FAIL
@@ -90,8 +100,8 @@ get_arguments() {
               RUN_LIST+=" ${1#*=}"
           fi
           ;;
-        --whole-experiment*)
-          WHOLE_EXPERIMENT="${1#*t}"
+        --whole-experiment)
+          WHOLE_EXPERIMENT='true'
 	  ;;
         --skip-dl)
           SKIP_DL='true'
@@ -99,8 +109,8 @@ get_arguments() {
         --dl-only)
           DL_ONLY="--dl-only "
           ;;
-	--experiment-accession=*)
-          EXPERIMENT_ACCESSION="${1#*=}"
+	--experiment-accession)
+          EXPERIMENT_ACCESSION='true'
 	  ;;
         --dl-attempts=*)
           DL_ATTEMPTS="${1#*=}"
@@ -471,26 +481,20 @@ sql_dl() {
 
 get_run_list() {
 
-    #if the --run-list was not specified then grab the run files from the --sample-file table
     FIRST_RUN=($(echo $1 | tr ';' ' '))
     #if --experiment-accession was specified, use this to procure then run files
-    if [[ ! -z $EXPERIMENT_ACCESSION ]]; then
-        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$EXPERIMENT_ACCESSION'")
-        sql_dl $RUN_LIST $EXPERIMENT_ACCESSION
-    #if the --whole-experiment option was not specified then then assume the run file specified in the table is an experiment_accession
-    elif [[ ! -z $WHOLE_EXPERIMENT ]]; then
+    if [[ $EXPERIMENT_ACCESSION == 'true' ]]; then
         RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$FIRST_RUN'")
-        #if the run file specified is not found as an experiment_accession then assume a list of SRA files was provided
-        if [[ -z $RUN_LIST ]]; then
-            RUN_LIST=$(echo $1 | tr ';' ' ')
-        fi
+	printf '%s\n' "--experiment-accession option selected. Locating SRA files from $FIRST_RUN specified in --run-list in $SQLITE_DIR/SRAmetadb.sqlite..."
+        sql_dl $RUN_LIST $EXPERIMENT_ACCESSION
     #if --whole-experiment option was set then use the SRA file specified in the table to procure all run files from the same experiment
-    else
+    elif [[ $WHOLE_EXPERIMENT == 'true' ]]; then
         EXPERIMENT_ACCESSION=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select experiment_accession from run where run_accession='$FIRST_RUN'")
-        printf '%s\n' "--whole-experiment option selected. SRA file $FIRST_RUN specified in --run-list is part of experiment $EXPERIMENT_ACCESSION. Locating other SRA files from this experiment in $SQLITE_DIR/SRAmetadb.sqlite..."
-        sql_dl $EXPERIMENT_ACCESSION $FIRST_RUN
-        
-        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$EXPERIMENT_ACCESSION'")
+	printf '%s\n' "--whole-experiment option selected. SRA file $FIRST_RUN specified in --run-list is part of experiment $EXPERIMENT_ACCESSION. Locating other SRA files from this experiment in $SQLITE_DIR/SRAmetadb.sqlite..."
+	sql_dl $EXPERIMENT_ACCESSION $FIRST_RUN
+        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$FIRST_RUN'")
+    else
+        RUN_LIST=$(echo $1 | tr ';' ' ')
     fi
 
     #At this point the run list may be in a string or range (e.g. SRR123{1..4}) format. This coverts range to string.
