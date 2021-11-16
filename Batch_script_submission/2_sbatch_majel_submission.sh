@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --time=04-00
-#SBATCH --mem=60gb
+#SBATCH --time=02-00
+#SBATCH --mem=42gb
 #SBATCH --ntasks-per-node=20
 #SBATCH --output=sbatch.out
 #SBATCH --mail-type=ALL 
@@ -17,26 +17,11 @@ module load igvtools/2.4.14
 module load R/3.6.1
 module load bedtools/2.26.0
 module load methyldackel/0.4.0
+module load intel-mkl/11.3.2
+module load perl/5.24.0
+module load parallel-fastq-dump/0.6.7
 module load python/3.7.2
 module load parallel/20190722
-module load parallel-fastq-dump/0.6.7
-
-#petrichor meodules
-#module load bowtie/2.4.4
-#module load fastqc/0.11.9
-#module load bismark/0.23.0
-#module load trimgalore/0.6.6
-#module load sratoolkit/2.11.0
-#module load samtools/1.12
-#module load bismark/0.23.0
-#module load picard/2.25.5
-#module load R/4.0.5
-#module load bedtools/2.30.0
-#module load python/3.9.4
-#module load parallel/20210322
-#module load parallel-fastq-dump/0.6.7
-#module load igvtools/2.11.3
-#module load methyldackel/0.6.1
 
 HELP='false'
 FROM_SCRATCH='false'
@@ -92,11 +77,9 @@ while [ $# -gt 0 ]; do
     --aligner-threads=*)
       ALIGNER_THREADS="${1#*=}"
       ;;
-    --script-dir=*)
-      SCRIPT_DIR="${1#*=}"
-      ;;
     --majel-dir=*)
       MAJEL_DIR="${1#*=}"
+      SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
       ;;
     --majel-args=*)
       if [[ $1 != "--majel-args=" ]]; then

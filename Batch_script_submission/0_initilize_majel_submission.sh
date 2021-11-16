@@ -25,11 +25,7 @@ set_defaults() {
     ALIGNER_THREADS='4'
 
     if hash slurm 2> /dev/null; then
-        if [[ $USER == "joh592" ]]; then
-            SCRIPT_DIR="/home/joh592/majel_wgbspipline_AJ/majel_wgbspipline/Batch_script_submission"
-        else
-            SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
-        fi
+        SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
     else
         #fetches the directory from which this script is located and run
         SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"

@@ -24,6 +24,8 @@ GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
 ALIGNER_THREADS='4'
 
+MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
+
 DL_ATTEMPTS=5
 DL_ONLY='false'
 

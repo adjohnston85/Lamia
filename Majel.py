@@ -259,7 +259,7 @@ def sraToFastq(input_file, output_files, logger, logger_mutex):
     thread_factor = 1
     if options.aligner == 'bismark':
         thread_factor = 5
-    cmd = ("%s --split-files --threads %s --gzip --outdir %s --sra-id %s" % (getFunctionPath("parallel-fastq-dump"),str(int(options.aligner_threads)*thread_factor),'./',input_file))
+    cmd = ("%s --split-files --threads %s --gzip --outdir %s --sra-id %s --tmpdir ./" % (getFunctionPath("parallel-fastq-dump"),str(int(options.aligner_threads)*thread_factor),'./',input_file))
     logger.log(MESSAGE,  timestamp("Running Command: %s" % cmd))
     exitcode, out, err = execute_cmd(cmd)
     checkOutput(output_files, "sraToFastq")
