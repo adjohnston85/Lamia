@@ -10,8 +10,8 @@ module load bowtie/2.2.9
 module load fastqc/0.11.5
 module load bismark/0.18.1
 module load trimgalore/0.6.7
-module load sratoolkit/2.9.6-1
-module load samtools/1.5
+module load sratoolkit/2.11.1
+module load samtools/1.10.0
 module load picard/2.18.11
 module load igvtools/2.4.14
 module load R/3.6.1
@@ -19,7 +19,6 @@ module load bedtools/2.26.0
 module load methyldackel/0.4.0
 module load intel-mkl/11.3.2
 module load perl/5.24.0
-module load parallel-fastq-dump/0.6.7
 module load python/3.7.2
 module load parallel/20190722
 
@@ -32,7 +31,7 @@ SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 
 GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-ALIGNER_THREADS='4'
+MAJEL_THREADS=20
 
 SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
 #the Majel.py script is located one directory up from to bash scripts directory
@@ -74,8 +73,8 @@ while [ $# -gt 0 ]; do
     --genome-path=*)
       GENOME_PATH="${1#*=}"
       ;;
-    --aligner-threads=*)
-      ALIGNER_THREADS="${1#*=}"
+    --majel-threads=*)
+      MAJEL_THREADS="${1#*=}"
       ;;
     --majel-dir=*)
       MAJEL_DIR="${1#*=}"
@@ -117,8 +116,7 @@ then
     printf '%s\n' '                         default: hg38'
     printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (e.g. --majel-genome-path=/path/to/Genomes/)'
     printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-    printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (e.g. --majel-threads=4)'
-    printf '%s\n' '                         default: 6'
+    printf '%s\n' '  --majel-threads=       used to alter --threads for Majel.py (e.g. --majel-threads=20)'
     printf '%s\n' '  --majel-dir=           used to alter path to Majel.py'
     printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False"'
@@ -143,7 +141,7 @@ LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/2_sbatch_majel_submission.log
 > $LOG_FILE
 
 SUBMISSION="python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME \
---genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}\
+--genome $GENOME --genome_path $GENOME_PATH --threads $MAJEL_THREADS ${MAJEL_ARGS}\
 -v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &>> slurm_majel_stdout.log"
 TIME=$(date '+%B %d %T %Z %Y')
 printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE

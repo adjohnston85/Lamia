@@ -12,8 +12,8 @@ set_defaults() {
     CONCURRENT_JOBS=5
 
     MAJEL_TIME='04-00'
-    MAJEL_MEM='60gb'
-    MAJEL_NTASKS='20'
+    MAJEL_MEM='42gb'
+    MAJEL_NTASKS=20
 
     RSYNC_TIME='08:00:00'
     RSYNC_MEM='4gb'
@@ -22,7 +22,6 @@ set_defaults() {
 
     GENOME='hg38'
     GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-    ALIGNER_THREADS='4'
 
     if hash slurm 2> /dev/null; then
         SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
@@ -138,9 +137,6 @@ get_arguments() {
         --genome-path=*)
           GENOME_PATH="${1#*=}"
           ;;
-        --aligner-threads=*)
-          ALIGNER_THREADS="${1#*=}"
-          ;;
         --majel-dir=*)
           MAJEL_DIR="${1#*=}"
           SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
@@ -187,7 +183,7 @@ job_submission() {
 
     #print time and script inputs
     printf '%s'     "$BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME " | tee -a $LOG_FILE
-    printf '%s'     " --majel-ntasks=$MAJEL_NTASKS $MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --aligner-threads=$ALIGNER_THREADS --genome=$GENOME " | tee -a $LOG_FILE
+    printf '%s'     " --majel-ntasks=$MAJEL_NTASKS $MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --genome=$GENOME " | tee -a $LOG_FILE
     printf '%s'     " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --run-list=\"$RUN_LIST\"" | tee -a $LOG_FILE
     printf '%s\n\n' " --run-dir=${RUN_DIR}" | tee -a $LOG_FILE 
 
@@ -254,7 +250,6 @@ job_submission() {
     check_argument "rsync-time" $RSYNC_TIME
     check_argument "rsync-mem" $RSYNC_MEM
     check_argument "sync-to" $SYNC_TO
-    check_argument "aligner-threads" $ALIGNER_THREADS
     check_argument "genome" $GENOME
     check_argument "genome-path" $GENOME_PATH
     check_argument "majel-dir" $MAJEL_DIR
@@ -291,7 +286,7 @@ job_submission() {
         #set job submission variable for if --run-list= was not declared (skips SRA download script)
         SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR "
         SUBMISSION+="--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH "
-        SUBMISSION+="--sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --aligner-threads=$ALIGNER_THREADS --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
+        SUBMISSION+="--majel-threads=$MAJEL_NTASKS --sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     else
         #convert string series to proper array
         TMP_ARRAY=($RUN_LIST)
@@ -302,7 +297,7 @@ job_submission() {
         set_fixes "sbatch --job-name=SRA_DL:${SAMPLE_NAME} --mail-user=$EMAIL --ntasks-per-node=$CORES "
 
         ##set job submission variable for if --run-list= was declared
-        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --aligner-threads=$ALIGNER_THREADS "
+        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM "
         SUBMISSION+="--run-list=\"$RUN_LIST\" --dl-attempts=$DL_ATTEMPTS --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
         SUBMISSION+="--sync-to=$SYNC_TO --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR $DL_ONLY--majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
     fi
@@ -314,7 +309,7 @@ job_submission() {
     if [[ -z $DL_ONLY ]]; then
         printf '%s\n\n' "These parameters will result in the following Majel.py job:" | tee -a $LOG_FILE
         printf '%s'     "python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME " | tee -a $LOG_FILE
-        printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --aligner_threads $ALIGNER_THREADS ${MAJEL_ARGS}" | tee -a $LOG_FILE
+        printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --threads $MAJEL_NTASKS ${MAJEL_ARGS}" | tee -a $LOG_FILE
         printf '%s\n\n' "-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log" | tee -a $LOG_FILE
     fi
 
@@ -360,8 +355,13 @@ ledger_check() {
 }
 
 
-CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:" "dl-only completed")
-CHECK_FILES="slurm_majel_stdout.log 0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log"
+if [[ $DL_ONLY == 'true' ]]; then
+    CHECK_PHRASES=("dl-only completed" "Error:")
+else
+    CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:")
+fi
+
+CHECK_FILES="0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log 3_sbatch_io_SyncProcessedData.log"
 
 completion_check() {
 
@@ -390,7 +390,7 @@ report_jobs() {
     done
     
     printf '\n%s\n' "Samples currently running:"
-    for SAMPLE in "${SAMPLE_ARRAY[@]}"; do
+    for SAMPLE in "${SAMPLE_ARRAY[@]}"; do    
         printf '%s\n' "$SAMPLE"
     done
     printf '\n'
@@ -453,23 +453,14 @@ submission_cycle() {
 
 
 sql_dl() {
-
     if [[ -z $1 ]]; then
         printf '%s\n' "Error: $2 could not be located in $SQLITE_DIR/SRAmetadb.sqlite."
-        printf '%s\n' "A job to check for and download the most recent version has been submitted."
-        printf '%s\n' "Check inputs or try again once download and decompression is completed"
+        printf '%s\n' "Check inputs or try again"
+        printf '%s\n' "The latest version of SRAmetadb.sqlite can be downloaded from https://s3.amazonaws.com/starbuck1/sradb/SRAmetadb.sqlite.gz"
     
         SQ_URL='https://s3.amazonaws.com/starbuck1/sradb/SRAmetadb.sqlite.gz'
         SQ_BACKUP='https://gbnci-abcc.ncifcrf.gov/backup/SRAmetadb.sqlite.gz'
-        if hash slurm 2> /dev/null; then
-            SUBMISSION="sbatch --job-name 'wget_SRAmetadb.sqlite' --time 02:00:00 --mail-type=ALL --mail-user=$EMAIL --partition io --wrap "
-            SUBMISSION+="aria2c --conditional-get --allow-overwrite -x 16 -d $SQLITE_DIR -o SRAmetadb.sqlite.gz SQ_URL; gunzip -f -k $SQLITE_DIR/SRAmetadb.sqlite.gz"
-            eval $SUBMISSION
-        else
-            aria2c -x 16 --conditional-get --allow-overwrite -d $SQLITE_DIR -o SRAmetadb.sqlite.gz $SQ_URL
-            gunzip -f -k $SQLITE_DIR/SRAmetadb.sqlite.gz
-        fi
-    
+        
         exit 1
     fi
 }
@@ -488,7 +479,7 @@ get_run_list() {
         EXPERIMENT_ACCESSION=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select experiment_accession from run where run_accession='$FIRST_RUN'")
 	printf '%s\n' "--whole-experiment option selected. SRA file $FIRST_RUN specified in --run-list is part of experiment $EXPERIMENT_ACCESSION. Locating other SRA files from this experiment in $SQLITE_DIR/SRAmetadb.sqlite..."
 	sql_dl $EXPERIMENT_ACCESSION $FIRST_RUN
-        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$FIRST_RUN'")
+        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$EXPERIMENT_ACCESSION'")
     else
         RUN_LIST=$(echo $1 | tr ';' ' ')
     fi
@@ -536,7 +527,6 @@ if [ -z $HELP ]; then
     printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
     printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (default: --majel-genome=hg38)'
     printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (default: --majel-genome-path=/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/)'
-    printf '%s\n' '  --aligner-threads=     used to alter --aligner_threads for Majel.py (default: --majel-threads=6)'
     printf '%s\n' '  --majel-dir=           used to alter path to Majel.py (default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main)'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False")'
     printf '%s\n' '                         Note: this list of additional arguments must be contained within quotation marks'
