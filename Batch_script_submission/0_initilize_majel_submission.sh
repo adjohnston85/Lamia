@@ -40,6 +40,7 @@ set_defaults() {
     WHOLE_EXPERIMENT='false'
     EXPERIMENT_ACCESSION='false'
     SKIP_DL='false'
+    TRANSFER_GENOME='false'
     
     unset DL_ONLY
     unset SAMPLE_NAME
@@ -137,6 +138,9 @@ get_arguments() {
         --genome-path=*)
           GENOME_PATH="${1#*=}"
           ;;
+        --transfer-genome)
+          TRANSFER_GENOME='true'
+          ;;	  
         --majel-dir=*)
           MAJEL_DIR="${1#*=}"
           SCRIPT_DIR="$MAJEL_DIR/Batch_script_submission"
@@ -171,6 +175,7 @@ set_fixes() {
 
 job_submission() {
    
+    [[ $TRANSFER_GENOME == 'false' ]] || GENOME_PATH="$JOB_DIR/"
     PROJECT_DIR="$JOB_DIR/$PROJECT_NAME"
     SAMPLE_DIR="$PROJECT_DIR/$SAMPLE_NAME"
     mkdir -p "$SAMPLE_DIR/data"
@@ -183,7 +188,7 @@ job_submission() {
 
     #print time and script inputs
     printf '%s'     "$BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME " | tee -a $LOG_FILE
-    printf '%s'     " --majel-ntasks=$MAJEL_NTASKS $MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --genome=$GENOME " | tee -a $LOG_FILE
+    printf '%s'     " --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --genome=$GENOME " | tee -a $LOG_FILE
     printf '%s'     " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --run-list=\"$RUN_LIST\"" | tee -a $LOG_FILE
     printf '%s\n\n' " --run-dir=${RUN_DIR}" | tee -a $LOG_FILE 
 
@@ -358,7 +363,7 @@ ledger_check() {
 if [[ $DL_ONLY == 'true' ]]; then
     CHECK_PHRASES=("dl-only completed" "Error:")
 else
-    CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:")
+    CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:" "methylseekrAndTDF did not complete")
 fi
 
 CHECK_FILES="0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log 3_sbatch_io_SyncProcessedData.log"
@@ -493,6 +498,20 @@ get_run_list() {
 #intilize argument variables
 set_defaults
 get_arguments "$@"
+
+REF_LOG=$JOB_DIR/refgenome_rsync.out
+THREADS=8
+if [[ $TRANSFER_GENOME == 'true' ]]; then
+    > $REF_LOG
+    sbatch --ntasks-per-node=$THREADS --time=00:01:00 --output=$REF_LOG --mail-type=ALL --mail-user=$EMAIL --wrap "module load rclone/1.55.1 ; rclone copy $GENOME_PATH/$GENOME/ $JOB_DIR/$GENOME/ --progress --multi-thread-streams=$THREADS ; echo 'transfer complete' >> $REF_LOG"
+    TRANSFER='false'
+    while [[ $TRANSFER == 'false' ]]; do
+        if [[ ! -z $(grep "transfer complete" $REF_LOG) ]]; then
+	    TRANSFER='true'
+	    sleep 10s
+	fi
+    done
+fi
 
 if [ -z $HELP ]; then
     printf '\n'

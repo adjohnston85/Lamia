@@ -11,16 +11,13 @@ import re
 import pandas as pd
 import sys
 from pathlib import Path
+import math
 
 #define all paths to sofware (Popen will not use $PATH)
 def getFunctionPath(target):
-     if re.sub(".*\\.","",target) == "jar":
-          proc = Popen(shlex.split('which %s' % target), stdout = PIPE, stderr = PIPE)
-          functionPath = re.sub("\\n", "",proc.communicate()[0].decode("utf-8"))
-     else:
-          proc = Popen(shlex.split('which %s' % target), stdout = PIPE, stderr = PIPE)
-          functionPath = re.sub("\\n", "",proc.communicate()[0].decode("utf-8"))
-     return functionPath
+    proc = Popen(shlex.split('which %s' % target), stdout = PIPE, stderr = PIPE)
+    functionPath = re.sub("\\n", "",proc.communicate()[0].decode("utf-8"))
+    return functionPath
 
 
 # get important directory locations
@@ -41,7 +38,7 @@ parser.add_argument("--genome", help="Genome for alignment. Must be a directory 
 parser.add_argument("--data_dir", help="Directory for input fastq/sra files",
                     default = "./data/")
 parser.add_argument("--sample_name", help='Sample name. Used for output file names and should match directory name. Will determine colouring of TDF track file and must conform to following convention "Tissue_SubTissue_HealthStatus_Identifier"')
-parser.add_argument("--threads", help="Speed up alignment and other processes by increasing number of threads. Defaults to 20 (this will cause Bismark to 4 aligner threads, which uses ~20 cores and ~40GB of RAM)",
+parser.add_argument("--threads", help="Speed up alignment and other processes by increasing number of threads. Defaults to 20 (this number is divided by 5 for Bismark, as 4 aligner threads uses ~20 cores and ~40GB of RAM)",
                           default=4)
 parser.add_argument("--pbat", action='store_true',
                           help="Specify when aligning pbat library")
@@ -58,7 +55,7 @@ logger, logger_mutex = cmdline.setup_logging(__name__, options.log_file, options
 options.logger = logger
 #fixing aligner to bismark but keeping old code for when walt is added
 options.aligner = "bismark"
-# Utility functions
+# Utility function
 class JobFailException(Exception):  # For when a cluster job fails
      def __init__(self, value):
           self.parameter = value
@@ -133,7 +130,6 @@ def genome_select(dirpath, target_genome):
           logger.log(MESSAGE, timestamp("genome_path '%s' in not a vaild directory" % dirpath))
           sys.exit(1)
      
-     
 
 def choose_alignCommand(target_genome, nThreads, fq_files, base_name, isPaired):
     alignerPath = getFunctionPath(options.aligner)
@@ -201,7 +197,6 @@ def getDirection():
 #     walt_cmd = aligner_select(target_genome, options.threads, [fq_files], base_name)
 #     return walt_cmd
 
-# Locate the SRA files
 def detect_input_type(input_files):
     if all([re.match(".+\\.f(ast)?q(.gz)?", file) for file in input_files]) and input_files:
         logger.log(MESSAGE, timestamp("Running from fastq"))
@@ -221,19 +216,19 @@ def sraToFastq(input_files,logger, logger_mutex):
     dataFiles=[file for file in os.listdir(options.data_dir)]
     for sra in input_files:
         if Path(sra).stem + "_1.fastq.gz" not in dataFiles and Path(sra).stem + "_2.fastq.gz" not in dataFiles:
-            cmd = ("%s %s --split-files --threads %s --gzip --outdir %s --sra-id %s --tmpdir ./" % (getFunctionPath("python"),pipeline_path + '/parallel-fastq-dump.py',options.threads,options.data_dir,sra))
+            cmd = ("%s %s --split-files --threads %s --gzip --outdir %s --sra-id %s --tmpdir ./" % (getFunctionPath("python"),pipeline_path + '/parallel-fastq-dump.py',
+                   options.threads,options.data_dir,sra))
             logger.log(MESSAGE,  timestamp("Running Command: %s" % cmd))
             exitcode, out, err = execute_cmd(cmd)
 
-        with logger_mutex:
-            logger.log(MESSAGE,"Extracted fastq from sra")
+            with logger_mutex:
+                logger.log(MESSAGE,"Extracted fastq from sra")
 
 if sraFiles:
     sraToFastq(sraFiles, logger, logger_mutex)
 
 infiles=[os.path.join(options.data_dir, file) for file in os.listdir(options.data_dir) if os.path.isfile(os.path.join(options.data_dir, file))]
 infiles.sort()
-print(infiles)
 detect_input_type(infiles)
 
 #pair files and prepare for ruffus 
@@ -248,6 +243,7 @@ if len(test) >= 4 and test[0].lower() in tmp_pd.tissue.str.lower().tolist():
 else:
     logger.log(MESSAGE,timestamp("Check sample name before proceeding"))
 
+
 @collate(infiles, formatter("(.*/)*(?P<file_details>.+_[rR]*)[12](?P<set_number>(_...)*)\.f(ast)*q(.gz)*"), 
                                      ['{file_details[0]}1{set_number[0]}_val_1.fq.gz',
                                       '{file_details[0]}2{set_number[0]}_val_2.fq.gz'], logger, logger_mutex)
@@ -256,7 +252,8 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
     trimPath = getFunctionPath("trim_galore")
     if options.is_paired_end == "True":
         if all([len(files) == 2 for files in input_files]):
-            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores 4 --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + input_files[0]))
+            threads = int(options.threads) // 4 if int(options.threads) > 4 else 1
+            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores %s --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + [str(threads)] + input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
         else:
             raise Exception("Unpaired files in input.")
@@ -303,7 +300,8 @@ def align_fastq(input_files, output_file, logger, logger_mutex):
         cmd = align_walt(input_files, base_name, genome_file)
     else:
         #bismark uses ~5 time the number of cores as specified in --parallel
-        cmd=aligner_select(genome_file, str(int(options.threads) // 5), input_files, 
+        threads = int(options.threads) // 5 if int(options.threads) > 5 else 1
+        cmd=aligner_select(genome_file, str(threads), input_files, 
                            base_name, options.is_paired_end)
     logger.log(MESSAGE, timestamp(cmd))
     os.system(cmd)
@@ -333,10 +331,9 @@ def sort_bam(input_file, output_file, logger, logger_mutex):
 def mDuplicates(input_file, output_file, logger, logger_mutex):
     if not os.path.exists("./tmp"):
         os.mkdir("./tmp")
-    javaPath = getFunctionPath("java")
-    picardPath = getFunctionPath("picard.jar")
+    picardPath = getFunctionPath("picard")
     samtoolsPath = getFunctionPath("samtools")
-    cmd="%s -Xms8g -jar %s MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=true TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % (javaPath, picardPath, input_file[0], output_file[0], options.sample_name)
+    cmd="%s -Xms8g MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=true TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % (picardPath, input_file[0], output_file[0], options.sample_name)
     logger.log(MESSAGE,  timestamp(cmd))
     os.system(cmd)
     checkBam(options.sample_name + "_sd")
@@ -351,7 +348,7 @@ def mDuplicates(input_file, output_file, logger, logger_mutex):
 def calculateCoverage(input_file, output_file, logger, logger_mutex):
      samtoolsPath = getFunctionPath("samtools")
      covBedpath = getFunctionPath("genomeCoverageBed")
-     cmd = "%s view -b -F 0x400 %s | %s -ibam - -g %s%s/%s.genome > %s" % (samtoolsPath, input_file[0], covBedpath, options.genome_path, options.genome, options.genome, output_file[0])
+     cmd = "%s view -b -F 0x400 %s | %s -ibam - -g %s/%s/%s.genome > %s" % (samtoolsPath, input_file[0], covBedpath, options.genome_path, options.genome, options.genome, output_file[0])     
      os.system(cmd)
      covFile = pd.read_table(output_file[0], header=None, names=['chr','depth','base_count','chr_size_bp','fraction'])
      genomeCov = covFile[covFile['chr'] == 'genome']
@@ -365,7 +362,7 @@ def calculateCoverage(input_file, output_file, logger, logger_mutex):
 @transform(mDuplicates, regex(r".bam$"), ["_CpG.bedGraph",'_OB.svg','_OT.svg'], logger, logger_mutex)
 def call_meth(input_file, output_file, logger, logger_mutex):
      methPath = getFunctionPath("MethylDackel")
-     bias_cmd=("%s mbias -@ %s %s%s/%s.fa %s %s" % (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
+     bias_cmd=("%s mbias -@ %s %s/%s/%s.fa %s %s" % (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
      os.system(bias_cmd)
      cmd=("%s extract -@ %s --mergeContext %s%s/%s.fa %s" % (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0]))
      os.system(cmd)

@@ -5,8 +5,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --partition io
 
-module load sratoolkit/2.11.1
-module load parallel/20190722
+module load sratoolkit/2.11.0
+module load parallel/20210322
 module load aria2/1.35.0
 
 HELP='false'
