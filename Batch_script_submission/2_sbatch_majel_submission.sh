@@ -1,22 +1,23 @@
 #!/bin/bash
-#SBATCH --time=02-00
-#SBATCH --mem=42gb
-#SBATCH --ntasks-per-node=20
+#SBATCH --time=04-00
+#SBATCH --mem=64gb
+#SBATCH --ntasks-per-node=32
 #SBATCH --output=sbatch.out
 #SBATCH --mail-type=ALL 
 
+module load amazon-corretto/16.0.0.36.1
+module load igvtools/2.11.3
+module load picard/2.25.5
 module load bowtie/2.4.4
 module load fastqc/0.11.9
 module load trimgalore/0.6.6
 module load sratoolkit/2.11.0
 module load samtools/1.12
 module load bismark/0.23.0
-module load picard/2.25.5
 module load R/4.0.5
 module load bedtools/2.30.0
 module load python/3.9.4
 module load parallel/20210322
-module load igvtools/2.11.3
 module load methyldackel/0.6.1
 module load bismark/0.23.0
 
@@ -24,12 +25,12 @@ HELP='false'
 FROM_SCRATCH='false'
 
 RSYNC_TIME='08:00:00'
-RSYNC_MEM='4gb'
+RSYNC_MEM='512mb'
 SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 
 GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-MAJEL_THREADS=20
+MAJEL_THREADS=32
 
 SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
 #the Majel.py script is located one directory up from to bash scripts directory

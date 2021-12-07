@@ -12,11 +12,11 @@ set_defaults() {
     CONCURRENT_JOBS=5
 
     MAJEL_TIME='04-00'
-    MAJEL_MEM='42gb'
-    MAJEL_NTASKS=20
+    MAJEL_MEM='64gb'
+    MAJEL_NTASKS=32
 
     RSYNC_TIME='08:00:00'
-    RSYNC_MEM='4gb'
+    RSYNC_MEM='512mb'
     SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
     SQLITE_DIR='/datasets/work/hb-meth-atlas/work/Data/level_2'
 
@@ -49,6 +49,7 @@ set_defaults() {
     unset RUN_DIR
     unset MAJEL_ARGS
     unset FAIL
+    unset SQL_CHECK
 }
 
 
@@ -213,28 +214,35 @@ job_submission() {
     PROJECT_DIR="$(cd $PROJECT_DIR && pwd)"
 
     #if SRAs were not specified for download make sure sequence files exist in /data directory
-    if [[ ! -z $RUN_DIR ]] && [[ ! -z $RUN_LIST ]]; then
-        for FILE_PREFIX in $RUN_LIST; do
-	    if [[ -d $RUN_DIR ]]; then
-		RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)_?[rR]?[12]?\.(fq|fastq|sra)\.?(gz)?"))
-		
-		if [[ ! -z $RUN_FILES ]]; then
-                    for FILE in ${RUN_FILES[@]}; do
-		        ln -sf $FILE $PROJECT_DIR/$SAMPLE_NAME/data/$(basename $FILE)
-                    done
-                else
-                    printf '%s\n' "Error: the run \"${FILE_PREFIX}\" specified in --run-list= does not exist in the --run-dir=$RUN_DIR directory" | tee -a $LOG_FILE
-		    FAIL='true'
-		fi
+    if [[ ! -z $RUN_DIR ]]; then
+	if [[ -d $RUN_DIR ]]; then
+	    if [[ ! -z $RUN_LIST ]]; then
+                for FILE_PREFIX in $RUN_LIST; do
+		    RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX).*_?[rR]?[12]?\.(fq|fastq)\.?(gz)?"))
+		    RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)\.(sra)"))
+	        done
             else
-                printf '%s\n' "Error: the directory in --run-dir=$RUN_DIR does not exist" | tee -a $LOG_FILE
-		FAIL='true'
+                RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/.*_?[rR]?[12]?\.(fq|fastq|sra)\.?(gz)?"))
             fi
-	    check_argument "run-list" "\"$RUN_LIST\""
+
+	    if [[ ! -z $RUN_FILES ]]; then
+                for FILE in ${RUN_FILES[@]}; do
+	            ln -sf $FILE $PROJECT_DIR/$SAMPLE_NAME/data/$(basename $FILE)
+                done
+            else
+                printf '%s\n' "Error: the run \"${FILE_PREFIX}\" specified in --run-list= does not exist in the --run-dir=$RUN_DIR directory" | tee -a $LOG_FILE
+	        FAIL='true'
+	    fi
+        else
+            printf '%s\n' "Error: the directory in --run-dir=$RUN_DIR does not exist" | tee -a $LOG_FILE
+            FAIL='true'
+            
+            check_argument "run-list" "\"$RUN_LIST\""
             check_argument "run-dir" "$RUN_DIR"
-        done 
+        fi
+
     elif [[ -z $RUN_LIST ]]; then
-	RUN_FILES=($(find $PROJECT_DIR/$SAMPLE_NAME/data -regextype posix-extended -regex ".*\.(fq|fastq|sra)\.(gz)?"))
+	    RUN_FILES=($(find $PROJECT_DIR/$SAMPLE_NAME/data -regextype posix-extended -regex ".*/.*_?[rR]?[12]?\.(fq|fastq|sra)\.?(gz)?"))
 	if [[ ${#RUN_FILES[@]} == 0 ]]; then
             printf '%s\n'   "Error: IF --run-list= is not used to specify SRA file(s) for download" | tee -a $LOG_FILE	
 	    printf '%s\n'   "Error: OR --run-list= and --run-dir= are not used to specify files for soft linking" | tee -a $LOG_FILE
@@ -335,6 +343,8 @@ job_submission() {
 	exit 1
     fi
     
+    unset QUEUED_ARRAY[0]
+    QUEUED_ARRAY=("${QUEUED_ARRAY[@]}")
     SAMPLE_ARRAY+=("$PROJECT_DIR/$SAMPLE_NAME")
     CSV_ARRAY+=("$line")
 
@@ -347,16 +357,19 @@ LEDGER_TITLES="Data Type,Sample_Name,Organism,Tissue,Sub-Tissue,Disease Status,U
 LEDGER_TITLES+="Citation,Repository,Input File(s),Notes,genome,Directory location 1,Directory location 2,Notes,"
 
 ledger_check() {
+
+    LEDGER_INFO=",${SAMPLE_NAME},,${CSV[0]},${CSV[1]},${CSV[2]},$USER_NAME,${DATE},,${PROJECT_NAME},"
+    LEDGER_INFO+="${CSV[3]},,${GENOME},${SYNC_TO}/${PROJECT_NAME}/${SAMPLE_NAME},,,"
     
     LEDGER_FILE="$PROJECT_DIR/${PROJECT_NAME}_$1_sample_ledger.csv"
     if [[ ! -f $LEDGER_FILE ]]; then
         echo -e "$LEDGER_TITLES" > "$LEDGER_FILE"
     fi
 
-    echo -e "$2" >> "$LEDGER_FILE"
+    echo -e "$LEDGER_INFO" >> "$LEDGER_FILE"
 
     SAMPLE_RECORD="$PROJECT_DIR/$SAMPLE_NAME/$1_record_$SAMPLE_NAME.csv"
-    echo -e "$2" > "$SAMPLE_RECORD"
+    echo -e "$LEDGER_INFO" > "$SAMPLE_RECORD"
 }
 
 
@@ -384,18 +397,23 @@ completion_check() {
 
 report_jobs() {
 
-    printf '%s\n' "Failed samples:"
+    printf '%s\n' "Queued samples:"
+    for SAMPLE in "${QUEUED_ARRAY[@]}"; do
+        printf '%s\n' "$SAMPLE"
+    done
+
+    printf '\n%s\n' "Samples currently running:"
+    for SAMPLE in "${SAMPLE_ARRAY[@]}"; do
+        printf '%s\n' "$SAMPLE"
+    done
+
+    printf '\n%s\n' "Failed samples:"
     for SAMPLE in "${FAIL_ARRAY[@]}"; do
         printf '%s\n' "$SAMPLE"
     done
     
     printf '\n%s\n' "Samples completed successfully:"
     for SAMPLE in "${SUCCESS_ARRAY[@]}"; do
-        printf '%s\n' "$SAMPLE"
-    done
-    
-    printf '\n%s\n' "Samples currently running:"
-    for SAMPLE in "${SAMPLE_ARRAY[@]}"; do    
         printf '%s\n' "$SAMPLE"
     done
     printf '\n'
@@ -423,23 +441,21 @@ submission_cycle() {
             else
                 USER_NAME=$USER
             fi
-            LEDGER_INFO=",${SAMPLE_NAME},,${CSV[0]},${CSV[1]},${CSV[2]},$USER_NAME,${DATE},,${PROJECT_NAME},"
-            LEDGER_INFO+="${CSV[3]},,${GENOME},${SYNC_TO}/${PROJECT_NAME}/${SAMPLE_NAME},,,"    
-            
+
 	    if grep -q -s "MethylSeekR and toTDF Completed" ${SAMPLE_ARRAY[i]}/slurm_majel_stdout.log; then
-                ledger_check "completed" "$LEDGER_INFO"
+                ledger_check "completed"
 		SUCCESS_ARRAY+=("${SAMPLE_ARRAY[i]}")
             elif grep -q -s "dl-only completed" ${SAMPLE_ARRAY[i]}/1_sbatch_parallel_sra_wget.log; then
                 SUCCESS_ARRAY+=("${SAMPLE_ARRAY[i]}")
             else
-                ledger_check "failed" "$LEDGER_INFO"
+                ledger_check "failed"
 		FAIL_ARRAY+=("${SAMPLE_ARRAY[i]}")
             fi
-   
+
             unset SAMPLE_ARRAY[i]
             SAMPLE_ARRAY=("${SAMPLE_ARRAY[@]}")
             unset CSV_ARRAY[i]
-            CSV_ARRAY=("${CSV_ARRAY[@]}")
+            CSV_ARRAY=("${CSV_ARRAY[@]}")	    
             
             if [[ ! -z $2 ]]; then
                 report_jobs
@@ -458,15 +474,16 @@ submission_cycle() {
 
 
 sql_dl() {
-    if [[ -z $1 ]]; then
+    echo $1
+
+    if [[ $1 == " " ]]; then
         printf '%s\n' "Error: $2 could not be located in $SQLITE_DIR/SRAmetadb.sqlite."
-        printf '%s\n' "Check inputs or try again"
         printf '%s\n' "The latest version of SRAmetadb.sqlite can be downloaded from https://s3.amazonaws.com/starbuck1/sradb/SRAmetadb.sqlite.gz"
-    
+
         SQ_URL='https://s3.amazonaws.com/starbuck1/sradb/SRAmetadb.sqlite.gz'
         SQ_BACKUP='https://gbnci-abcc.ncifcrf.gov/backup/SRAmetadb.sqlite.gz'
-        
-        exit 1
+
+	SQL_CHECK='fail'
     fi
 }
 
@@ -478,13 +495,16 @@ get_run_list() {
     if [[ $EXPERIMENT_ACCESSION == 'true' ]]; then
         RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$FIRST_RUN'")
 	printf '%s\n' "--experiment-accession option selected. Locating SRA files from $FIRST_RUN specified in --run-list in $SQLITE_DIR/SRAmetadb.sqlite..."
-        sql_dl $RUN_LIST $EXPERIMENT_ACCESSION
+        sql_dl "$RUN_LIST " $EXPERIMENT_ACCESSION
+	[[ $SQL_CHECK != 'fail' ]] || printf '%s\n\n' "If $EXPERIMENT_ACCESSION cannot be located in the latest SRAmetadb.sqlite version, this job will need to be run by specifying all SRA files for download in --run-list="
     #if --whole-experiment option was set then use the SRA file specified in the table to procure all run files from the same experiment
     elif [[ $WHOLE_EXPERIMENT == 'true' ]]; then
         EXPERIMENT_ACCESSION=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select experiment_accession from run where run_accession='$FIRST_RUN'")
-	printf '%s\n' "--whole-experiment option selected. SRA file $FIRST_RUN specified in --run-list is part of experiment $EXPERIMENT_ACCESSION. Locating other SRA files from this experiment in $SQLITE_DIR/SRAmetadb.sqlite..."
-	sql_dl $EXPERIMENT_ACCESSION $FIRST_RUN
-        RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$EXPERIMENT_ACCESSION'")
+	printf '%s\n' "--whole-experiment option selected. $FIRST_RUN (the first run accession specified in --run-list=) will be used to locate other SRA files from the same experiment" 
+	printf '%s\n' "Locating other SRA files in $SQLITE_DIR/SRAmetadb.sqlite with the same experiment accession $EXPERIMENT_ACCESSION..."
+	[[ -z $EXPERIMENT_ACCESSION ]] || RUN_LIST=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select run_accession from run where experiment_accession='$EXPERIMENT_ACCESSION'")
+	sql_dl "$EXPERIMENT_ACCESSION " "$FIRST_RUN"
+	[[ $SQL_CHECK != 'fail' ]] || printf '%s\n\n' "If $FIRST_RUN cannot be located in the latest SRAmetadb.sqlite version then --whole-experiment cannot be used and this job will need to be run by specifying all SRA files for download in --run-list="
     else
         RUN_LIST=$(echo $1 | tr ';' ' ')
     fi
@@ -498,20 +518,6 @@ get_run_list() {
 #intilize argument variables
 set_defaults
 get_arguments "$@"
-
-REF_LOG=$JOB_DIR/refgenome_rsync.out
-THREADS=8
-if [[ $TRANSFER_GENOME == 'true' ]]; then
-    > $REF_LOG
-    sbatch --ntasks-per-node=$THREADS --time=00:01:00 --output=$REF_LOG --mail-type=ALL --mail-user=$EMAIL --wrap "module load rclone/1.55.1 ; rclone copy $GENOME_PATH/$GENOME/ $JOB_DIR/$GENOME/ --progress --multi-thread-streams=$THREADS ; echo 'transfer complete' >> $REF_LOG"
-    TRANSFER='false'
-    while [[ $TRANSFER == 'false' ]]; do
-        if [[ ! -z $(grep "transfer complete" $REF_LOG) ]]; then
-	    TRANSFER='true'
-	    sleep 10s
-	fi
-    done
-fi
 
 if [ -z $HELP ]; then
     printf '\n'
@@ -537,12 +543,14 @@ if [ -z $HELP ]; then
     printf '%s\n' '  --whole-experiment     if a single SRA file is specified in --run-list= all other SRA files from the same experiment will be downloaded an run'
     printf '%s\n' '  --dl-attempts=         sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
     printf '%s\n' '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
+    printf '%s\n' '  --dl-only              downloades SRA files but skips subsequent steps including running through Majel.py'
+    printf '%s\n' '  --skip-dl              skips the SRA download step and goes directly to Majel submission. For use when SRA files have already been downloaded'
     printf '%s\n' '  --run-dir=             sets the directory where the run files specified in --run-list= will be soft linked from'
     printf '%s\n' '  --majel-time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
-    printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=20)'
-    printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=60gb'
+    printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=32)'
+    printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=64gb'
     printf '%s\n' '  --rsync-time=          sets time allocated to sbatch_io_SyncProcessedData_AJ.sh    (default: --rsync-time=08:00:00)'
-    printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=4gb'
+    printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=512mb'
     printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
     printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (default: --majel-genome=hg38)'
     printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (default: --majel-genome-path=/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/)'
@@ -556,74 +564,99 @@ if [ -z $HELP ]; then
 fi
 
 
+#Check if reference genome files for alignement exist in the job directory, if not transfer them
+REF_LOG=$JOB_DIR/refgenome_rsync.out
+THREADS=8
+if [[ $TRANSFER_GENOME == 'true' ]]; then
+    > $REF_LOG
+    sbatch --ntasks-per-node=$THREADS --time=00:20:00 --output=$REF_LOG --mail-type=ALL --mail-user=$EMAIL --wrap "module load rclone/1.55.1 ; rclone copy $GENOME_PATH/$GENOME/ $JOB_DIR/$GENOME/ --progress --multi-thread-streams=$THREADS ; echo 'transfer complete' >> $REF_LOG"
+    TRANSFER='false'
+    while [[ $TRANSFER == 'false' ]]; do
+        if [[ ! -z $(grep "transfer complete" $REF_LOG) ]]; then
+            TRANSFER='true'
+            sleep 10s
+        fi
+    done
+fi
+
+
 #check if SAMPLE_FILE was declared and if so run through this file in a job submission loop, 
 #pauses when maximum number of concurrent jobs is reached and waits for a job to finished before submitting another
 if [[ ! -z $SAMPLE_FILE ]]; then
-    if [[ -f $SAMPLE_FILE ]]; then
-        SKIP_PROMPT='true'
+    [[ -f $SAMPLE_FILE ]] || (printf '%s\n\n' "Error: the file \"$SAMPLE_FILE\" does not exist. Exiting submission pipeline" ; exit 1)
+        
+   SKIP_PROMPT='true'
+   CSV_FILE=$(cat $SAMPLE_FILE | tr "\\t" ",")
+   SAMPLE_ARRAY=()
+   PROJECT_ARRAY=()
+   CSV_ARRAY=()
+   FAIL_ARRAY=()
+   SUCCESS_ARRAY=()
+   readarray -t QUEUED_ARRAY < $SAMPLE_FILE
 
-        CSV_FILE=$(cat $SAMPLE_FILE | tr "\\t" ",")
-        SAMPLE_ARRAY=()
-	PROJECT_ARRAY=()
-	CSV_ARRAY=()
-	FAIL_ARRAY=()
-	SUCCESS_ARRAY=()
+   while read line; do
+       set_defaults
 
-        while read line; do
-            set_defaults
+       CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"
 
-	    CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"
-            
-            ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"${CSV[5]}; "
-            get_arguments "$@"
-            get_arguments "${ARGS[@]}"
+       ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"${CSV[5]}; "
+       get_arguments "$@"
+       get_arguments "${ARGS[@]}"
 
-	    #if the --run-list was not specified then grab the run files from the --sample-file table 
-	    if [[ -z $RUN_LIST ]]; then
-                RUN_LIST=${CSV[3]}
-            fi
+       #if the --run-list was not specified then grab the run files from the --sample-file table 
+       if [[ -z $RUN_LIST ]]; then
+           RUN_LIST=${CSV[3]}
+       fi
 
-            get_run_list $RUN_LIST
+       get_run_list $RUN_LIST
 
-	    #If --sample-name was not specified then make the sample name from sample-file table. Use SRA to determine experiment accession and project
-	    if [[ -z $SAMPLE_NAME ]]; then
-	        SAMPLE_NAME=$(IFS=_ ; CELLS="${CSV[*]:0:3}"; echo "${CELLS^}" | sed 's/ [[:lower:]]/\U&/g' | tr -d ' ' | sed 's/_[[:lower:]]/\U&/g')
-	        
-		if [[ -z $RUN_DIR ]]; then
-		    SQL_QUERY="select experiment_accession from experiment where experiment_accession in (select experiment_accession from run where run_accession='${RUN_ARRAY[0]}')"
-	            SAMPLE_NAME+="_$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "$SQL_QUERY")"
-		else
-	            SAMPLE_NAME+="_${RUN_ARRAY[0]}"
-                fi
-    
-	        if [[ -z $PROJECT_NAME ]]; then
-	            SQL_QUERY="select study_accession from study where study_accession in (select study_accession from experiment where "
-	            SQL_QUERY+="experiment_accession in (select experiment_accession from run where run_accession='${RUN_ARRAY[0]}'))"
-                    PROJECT_NAME=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "$SQL_QUERY")
-                    sql_dl $PROJECT_NAME ${RUN_ARRAY[0]}
-                fi
-            fi
+       #If --sample-name was not specified then make the sample name from sample-file table. Use SRA to determine experiment accession and project
+       if [[ -z $SAMPLE_NAME ]]; then
+           SAMPLE_NAME=$(IFS=_ ; CELLS="${CSV[*]:0:3}"; echo "${CELLS^}" | sed 's/ [[:lower:]]/\U&/g' | tr -d ' ' | sed 's/_[[:lower:]]/\U&/g')
 
-            job_submission
-          
-            if [[ ${#SAMPLE_ARRAY[@]} -ge $CONCURRENT_JOBS ]]; then
-                printf '%s'     "The maximum number of concurrent Majel.py jobs (--concurrent-jobs=$CONCURRENT_JOBS) has been reached. "
-		printf '%s\n\n' "Waiting for a sample to finish before continuing with submissions."
-                
-                report_jobs
-            fi
- 
-            submission_cycle $CONCURRENT_JOBS
+           if [[ -z $RUN_DIR ]]; then
+               SQL_QUERY="select experiment_accession from experiment where experiment_accession in (select experiment_accession from run where run_accession='${RUN_ARRAY[0]}')"
+               SAMPLE_NAME+="_$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "$SQL_QUERY")"
+           else
+               SAMPLE_NAME+="_${RUN_ARRAY[0]}"
+           fi
 
-        done <<<"$CSV_FILE"
+           if [[ -z $PROJECT_NAME ]]; then
+               SQL_QUERY="select study_accession from study where study_accession in (select study_accession from experiment where "
+               SQL_QUERY+="experiment_accession in (select experiment_accession from run where run_accession='${RUN_ARRAY[0]}'))"
+               printf '%s\n' "--project-name= option was not specfied. ${RUN_ARRAY[0]} (the first run accession specified in --run-list=) will be used to locate the study accession for use as the project name"
+               printf '%s\n' "Locating study accession in $SQLITE_DIR/SRAmetadb.sqlite..."
+               PROJECT_NAME=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "$SQL_QUERY")
+	       
+               sql_dl "$PROJECT_NAME " ${RUN_ARRAY[0]}
+               [[ ! -z $PROJECT_NAME ]] || printf '%s\n' "If ${RUN_ARRAY[0]} cannot be located in the latest SRAmetadb.sqlite version, this job will need to be run by specifying --project-name="
 
-        submission_cycle 1 0
-       
-        printf '%s\n\n' "All jobs from $SAMPLE_FILE have completed. Exiting submission pipeline."
+   	       if [[ $SQL_CHECK == 'fail' ]]; then
+                   FAIL_ARRAY+=("${SAMPLE_ARRAY[i]}")
+                   printf '~%.0s' {1..150}
+                   printf '\n\n'
+                   continue
+               fi
+           fi
+       fi
 
-    else
-        printf '%s\n\n' "Error: the file \"$SAMPLE_FILE\" does not exist. Exiting submission pipeline"
-    fi
+       job_submission
+
+       if [[ ${#SAMPLE_ARRAY[@]} -ge $CONCURRENT_JOBS ]]; then
+           printf '%s'     "The maximum number of concurrent Majel.py jobs (--concurrent-jobs=$CONCURRENT_JOBS) has been reached. "
+           printf '%s\n\n' "Waiting for a sample to finish before continuing with submissions."
+
+           report_jobs
+       fi
+
+       submission_cycle $CONCURRENT_JOBS
+
+   done <<<"$CSV_FILE"
+
+   submission_cycle 1 0
+
+   printf '%s\n\n' "All jobs from $SAMPLE_FILE have completed. Exiting submission pipeline."
+
 else
     #submit a single job if SAMPLE_FILE was not declared
     get_run_list $RUN_LIST

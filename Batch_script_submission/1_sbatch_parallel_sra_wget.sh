@@ -13,16 +13,15 @@ HELP='false'
 FROM_SCRATCH=''
 
 MAJEL_TIME="04-00"
-MAJEL_MEM="60gb"
-MAJEL_NTASKS='1'
+MAJEL_MEM="64gb"
+MAJEL_NTASKS='32'
 
 RSYNC_TIME="08:00:00"
-RSYNC_MEM="4gb"
+RSYNC_MEM="512mb"
 SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 
 GENOME='hg38'
 GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
-MAJEL_THREADS='4'
 
 MAJEL_DIR='/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
 
@@ -88,9 +87,6 @@ while [ $# -gt 0 ]; do
     --genome-path=*)
       GENOME_PATH="${1#*=}"
       ;;
-    --majel-threads=*)
-      MAJEL_THREADS="${1#*=}"
-      ;;
     --script-dir=*)
       SCRIPT_DIR="${1#*=}"
       ;;
@@ -126,14 +122,13 @@ if [ -z $HELP ];then
     printf '%s\n' '  --dl-attempts          sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
     printf '%s\n' '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
     printf '%s\n' '  --majel_time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
-    printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=20)'
-    printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=60gb'
+    printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=32)'
+    printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=64gb'
     printf '%s\n' '  --rsync-time=          sets time allocated to sbatch_io_SyncProcessedData_AJ.sh    (default: --rsync-time=08:00:00)'
-    printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=4gb'
+    printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=512mb'
     printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
     printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (default: --majel-genome=hg38)'
     printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (default: --majel-genome-path=/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/)'
-    printf '%s\n' '  --majel-threads=     used to alter --aligner_threads for Majel.py (default: --majel-threads=6)'
     printf '%s\n' '  --majel-dir=           used to alter path to Majel.py (default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main)'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False")'
     printf '%s\n' '                         Note: this list of additional arguments must be contained within quotation marks'
@@ -183,7 +178,7 @@ validate_sra() {
 
 	if [[ ( $ERROR -ne 0 && $ELAPSED -lt $TIME_OUT ) || ( -f "${SRA}/$SRA.sra.aria2" ) ]]; then
             RETRY='true'
-            TEMP_LIST+="$SRA"
+	    TEMP_LIST+=("$SRA")
         else
             prefetch $SRA -O ./ &>> $DL_LOG
             sra-stat --meta --quick $DATA_DIR/${SRA}/${SRA}.sra >> $LOG_FILE

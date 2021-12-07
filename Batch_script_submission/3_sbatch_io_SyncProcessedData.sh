@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --partition=io
-#SBATCH --mem=4G
 #SBATCH --time=08:00:00
 #SBATCH --output=MappedData_rsync.out
 #SBATCH --mail-type=ALL
@@ -40,9 +39,11 @@ then
 fi
 
 SYNC_FROM="$(cd $SYNC_FROM && pwd)"
+SAMPLE_NAME=$(basename "$($SYNC_FROM)")
 PROJECT_FOLDER=$(basename "$(dirname $SYNC_FROM)")
 
-SUBMISSION="rsync -avzh --whole-file --remove-source-files --no-g --chmod=Dg=rwxs $SYNC_FROM $SYNC_TO/$PROJECT_FOLDER/ &>> 3_sbatch_io_SyncProcessedData.log"
+SUBMISSION="rsync -avzh --whole-file --remove-source-files --no-g --chmod=Dg=rwxs --exclude '3_sbatch_io_SyncProcessedData.log' $SYNC_FROM $SYNC_TO/$PROJECT_FOLDER/ &>> 3_sbatch_io_SyncProcessedData.log"
 TIME=$(date '+%B %d %T %Z %Y')
+cp $SYNC_FROM/3_sbatch_io_SyncProcessedData.log $SYNC_TO/$PROJECT_FOLDER/$SAMPLE_NAME/3_sbatch_io_SyncProcessedData.log 
 printf '%s\n\n' "$TIME> $SUBMISSION" > 3_sbatch_io_SyncProcessedData.log
 eval $SUBMISSION

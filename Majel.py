@@ -373,7 +373,9 @@ def call_meth(input_file, output_file, logger, logger_mutex):
 
 @transform(call_meth, regex(r"_sd_CpG.bedGraph"), ["_PMD.bed", "_UMRLMR.bed", "_wPMD_UMRLMR.bed", "_sd_CpG.tdf"], logger, logger_mutex)
 def methylseekrAndTDF(input_file, output_file, logger, logger_mutex):
-     Rscript_cmd = "Rscript %s/Rscripts/CallMethylseekrRegions_and_convertMethCallsToTdf.R -g %s -i %s -t %s/data/TissueToEmbryoMap.csv -e %s -p %s" % (pipeline_path, options.genome, input_file[0], pipeline_path, options.genome_path, options.threads)
+     threads = int(options.threads) // 8 if int(options.threads) > 8 else 1 
+     Rscript_cmd = "Rscript %s/Rscripts/CallMethylseekrRegions_and_convertMethCallsToTdf.R -g %s -i %s -t %s/data/TissueToEmbryoMap.csv -e %s -p %s" % (pipeline_path, options.genome, input_file[0], pipeline_path, options.genome_path, str(threads))
+     print(Rscript_cmd)
      os.system(Rscript_cmd)
      checkOutput(output_file, "methylseekrAndTDF")
      
