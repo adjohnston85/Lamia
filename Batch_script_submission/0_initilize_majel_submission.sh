@@ -187,6 +187,9 @@ job_submission() {
     PARAMETERS_FILE="$SAMPLE_DIR/run_parameters_$SAMPLE_NAME.txt"
     > $PARAMETERS_FILE
 
+    #add space after additional majel arguments, if they exist
+    [[ -z $MAJEL_ARGS ]] || MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
+
     #print time and script inputs
     printf '%s'     "$BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME " | tee -a $LOG_FILE
     printf '%s'     " --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --genome=$GENOME " | tee -a $LOG_FILE
@@ -215,14 +218,16 @@ job_submission() {
 
     #if SRAs were not specified for download make sure sequence files exist in /data directory
     if [[ ! -z $RUN_DIR ]]; then
+	check_argument "run-dir" $RUN_DIR
 	if [[ -d $RUN_DIR ]]; then
 	    if [[ ! -z $RUN_LIST ]]; then
+		check_argument "run-list" "$RUN_LIST"
                 for FILE_PREFIX in $RUN_LIST; do
 		    RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX).*_?[rR]?[12]?\.(fq|fastq)\.?(gz)?"))
-		    RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)\.(sra)"))
+		    RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)"))
 	        done
             else
-                RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/.*_?[rR]?[12]?\.(fq|fastq|sra)\.?(gz)?"))
+                RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/.*_?[rR]?[12]?\.(fq|fastq)\.?(gz)?"))
             fi
 
 	    if [[ ! -z $RUN_FILES ]]; then
@@ -266,9 +271,6 @@ job_submission() {
     check_argument "genome" $GENOME
     check_argument "genome-path" $GENOME_PATH
     check_argument "majel-dir" $MAJEL_DIR
-    
-    #add space after additional majel arguments, if they exist
-    [[ -z $MAJEL_ARGS ]] || MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
        
     #prints MAJEL_ARGS values without checking for existance (this argument is not required for subsequent steps)
     printf '%s\n\n' "--majel-args=\"${MAJEL_ARGS}\"" | tee -a $LOG_FILE $PARAMETERS_FILE
@@ -506,7 +508,7 @@ get_run_list() {
 	sql_dl "$EXPERIMENT_ACCESSION " "$FIRST_RUN"
 	[[ $SQL_CHECK != 'fail' ]] || printf '%s\n\n' "If $FIRST_RUN cannot be located in the latest SRAmetadb.sqlite version then --whole-experiment cannot be used and this job will need to be run by specifying all SRA files for download in --run-list="
     else
-        RUN_LIST=$(echo $1 | tr ';' ' ')
+        RUN_LIST=$(echo "$1" | tr ';' ' ')
     fi
 
     #At this point the run list may be in a string or range (e.g. SRR123{1..4}) format. This coverts range to string.
@@ -527,30 +529,32 @@ if [ -z $HELP ]; then
     printf '%s\n' 'Mandatory arguments:'
     printf '%s\n' '  --job-dir=             sets path to the job directory containing the project and sample directories (e.g. --job-dir=/scratch1/usr001)'
     printf '%s\n' '  --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678)'
-    printf '%s\n' '                         the sample name must correspond to a directory in the project directory and conform to the Majel.py naming conventions'
-    printf '%s\n' '                         the sample directory must contain a data/ directory containing either SRA (.sra) or FASTQ (.fq or .fastq) files'
-    printf '%s\n' '                         i.e. /path/to/PROJECT_NAME/SAMPLE_NAME/data/file.sra'
     printf '%s\n' '  --mail-user=           sets email for SLURM notifications'
-    printf '%s\n' '                         not required when running on a system that does not use SLURM (e.g. the SHIRO-RI workstation)'
-    printf '\n'
-    printf '%s\n' 'Optional arguments:'
     printf '%s\n' '  --project-name=        sets name of the project. This will be used to create a project directory (e.g --project-name=PRJN12334)'
-    printf '%s\n' '  --sample-file=         sets path to a tab or comma delimited file containing sample information to run through pipeline (e.g. --sample-name=/scratch1/usr001/samples.csv)'
-    printf '%s\n' '                         Note: any arguments declared in this file will override those declared globally'
-    printf '%s\n' '  --concurrent-jobs      if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted from the <sample-file> at any one time'
-    printf '%s\n' '  --run-list=            sets the list of sequence files for downloaded or soft linking (e.g. --run-list="SRR1234567 SRR1234568" OR --run-list=SRR123456{7..8} )'
+    printf '%s\n' '  --run-list=            sets the list of run accessions (SRAs) or sequence files for downloaded or soft linking (e.g. --run-list="SRR1234567 SRR1234568" OR --run-list=SRR123456{7..8} )'
     printf '%s\n' '                         Note: as per the example the list must be contained within quotation marks and sperated by spaces'
-    printf '%s\n' '  --whole-experiment     if a single SRA file is specified in --run-list= all other SRA files from the same experiment will be downloaded an run'
+    printf '%s\n' '  --run-dir=             sets the directory where the file name prefixes specified in --run-list= will be used to locate and soft link FASTQ files'   
+    printf '%s\n' '  --whole-experiment     if a single SRA file is specified in --run-list= all other SRA files from the same experiment will be downloaded and run by querying SRAmetadb.sqlite'  
+    printf '%s\n' '  --sample-file=         sets path to a tab or comma delimited file containing sample information to run through pipeline (e.g. --sample-name=/scratch1/usr001/samples.csv)'
+    printf '%s\n' '                         any arguments declared in this file will override those declared globally'
+    printf '%s\n' '                         Column 1        Column 2       Column 3       Column 4        Column 5       Column 6'
+    printf '%s\n' '                         Tissue          Subtissue      SampleType     <run-list>      Username       Arguments'
+    printf '%s\n' '                         accessions/files specified in Column 4 must be sperated by spaces or semicolons and arguments in Column 6 seperated by | (vertical bars)'
+    printf '%s\n' '                         SRA example:'
+    printf '%s\n' '                         colon,colon,Normal_adjacent_tissue_P6,SRR949213 SRR949214 SRR949215,Andrew Johnston'
+    printf '%s\n' '                         Note: arguments are generally not required in this file for run accessions (SRAs), as <sample-name> and <project-name> will be determined from SRAmetadb.sqlite, if possible. <job-dir> and <mail-user> can be declared globally'
+    printf '%s\n' '                         FASTQ example:'
+    printf '%s\n' '                         breast,breast,normal tissue,breast_run1;breast_run2,Andrew Johnston,--project-name=BRE001|--run-dir=/path/to/files|--sample-name=Breast_NOS_NormalTissue_BRE001'
+    printf '%s\n' '  --concurrent-jobs      if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted from the <sample-file> at any one time'
     printf '%s\n' '  --dl-attempts=         sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
     printf '%s\n' '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
-    printf '%s\n' '  --dl-only              downloades SRA files but skips subsequent steps including running through Majel.py'
+    printf '%s\n' '  --dl-only              downloads SRA files but skips subsequent steps including running through Majel.py'
     printf '%s\n' '  --skip-dl              skips the SRA download step and goes directly to Majel submission. For use when SRA files have already been downloaded'
-    printf '%s\n' '  --run-dir=             sets the directory where the run files specified in --run-list= will be soft linked from'
-    printf '%s\n' '  --majel-time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
-    printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=32)'
-    printf '%s\n' '  --majel-mem=           sets --mem= allocated to sbatch_majel_submission_AJ.sh      (default: --majel-mem=64gb'
-    printf '%s\n' '  --rsync-time=          sets time allocated to sbatch_io_SyncProcessedData_AJ.sh    (default: --rsync-time=08:00:00)'
-    printf '%s\n' '  --rsync-mem=           sets memory allocated to sbatch_io_SyncProcessedData_AJ.sh  (default: --rsync-mem=512mb'
+    printf '%s\n' '  --majel-time=          sets --time= allocated to 2_sbatch_majel_submission_AJ.sh (default: --majel-time=04-00)'
+    printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for 2_sbatch_majel_submission_AJ.sh and number of cores used by Majel.py (default: --majel-ntasks=32)'
+    printf '%s\n' '  --majel-mem=           sets --mem= allocated to 2_sbatch_majel_submission_AJ.sh (default: --majel-mem=64gb'
+    printf '%s\n' '  --rsync-time=          sets time allocated to 3_sbatch_io_SyncProcessedData_AJ.sh (default: --rsync-time=08:00:00)'
+    printf '%s\n' '  --rsync-mem=           sets memory allocated to 3_sbatch_io_SyncProcessedData_AJ.sh (default: --rsync-mem=512mb'
     printf '%s\n' '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
     printf '%s\n' '  --genome=              used to alter --genome argument for Majel.py (default: --majel-genome=hg38)'
     printf '%s\n' '  --genome-path=         used to alter --genome_path argument for Majel.py (default: --majel-genome-path=/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/)'
@@ -599,7 +603,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
 
        CSV=(); while read -rd,; do CSV+=("$REPLY"); done <<<"$line,"
 
-       ARGS=(); while read -rd\;; do ARGS+=("$REPLY"); done <<<"${CSV[5]}; "
+       ARGS=(); while read -rd\|; do ARGS+=("$REPLY"); done <<<"${CSV[5]}| "
        get_arguments "$@"
        get_arguments "${ARGS[@]}"
 
@@ -608,7 +612,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
            RUN_LIST=${CSV[3]}
        fi
 
-       get_run_list $RUN_LIST
+       get_run_list "$RUN_LIST"
 
        #If --sample-name was not specified then make the sample name from sample-file table. Use SRA to determine experiment accession and project
        if [[ -z $SAMPLE_NAME ]]; then
@@ -659,7 +663,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
 
 else
     #submit a single job if SAMPLE_FILE was not declared
-    get_run_list $RUN_LIST
+    get_run_list "$RUN_LIST"
     job_submission 
     SAMPLE_INFO=(""$(echo $SAMPLE_NAME | tr '_' ' ')"")
     line="$(echo "${SAMPLE_INFO[*]:0:3}" | tr ' ' ','),,,$(echo $RUN_LIST | tr ' ' ';' | tr -d '"'),,,"
