@@ -168,15 +168,14 @@ This is where users will set all of their Majel run settings and is used to run 
 - cleanup of temporary files
 - rsycning
 
-When running this script on a single sample this script can and should be executed without submitting to SLURM.
-When run locally without submitting with the 'sbatch' command, the input parameters and details of the ensuing job submissions are displayed to a user.
-At this point the user is prompted to confirm whether or not to continue with the submission.
-This gives an opportunity to cancel the submission process before it is engaged. 
+When running this script on a single sample this script should be executed without submitting to SLURM.
+When run locally without submitting with the 'sbatch' command, the input parameters and details of the ensuing job submission are displayed to a user.
+At this point the user is prompted to confirm whether or not to continue with the submission, giveing an opportunity to cancel the submission process before it is engaged. 
 
-0_initilize_majel_submission.sh also allows users to submit file with a list of samples to submit to SLURM and/or run through the Majel pipeline.
+0_initilize_majel_submission.sh also allows users to specify a file with a list of samples to submit to SLURM and/or run through the Majel pipeline.
 Jobs are submitted based on the maximum number of concurrent jobs set by the user and the user prompt/confirmation function is disabled.
-These jobs are then monitored and subsequent samples in the list are submitted when a job fails or completes.
-If running on a system using SLURM, this script should be submitted with 'sbatch'.
+These jobs are then monitored and subsequent samples in the list are submitted when a job completes or fails due to an error.
+If running on a system using SLURM, this script should be submitted with 'sbatch' when a sample file is specified.
 
 Basic usage for previously generated FASTQ files:\
 Path_to_majel_wgbspipline/Batch_script_submission/0_initilize_majel_submission.sh --job-dir=/path/to/pipeline_output
