@@ -118,15 +118,15 @@ pipeline arguments:
  
 ## Required software
 Majel was written using the following packages
-* FastQC v0.11.5
-* bismark-0.18.1 https://www.bioinformatics.babraham.ac.uk/projects/bismark/
-* Methyldackel-0.3.0 (using HTSlib version 1.2.1) https://github.com/dpryan79/MethylDackel
-* trim_galore-0.4.3 https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/
-* fastq-dump : 2.8.2 (from sra toolkit) https://www.ncbi.nlm.nih.gov/sra/docs/toolkitsoft/
-* samtools-1.4.1 (using htslib 1.4.1) http://www.htslib.org/doc/samtools.html
-* picard MarkDuplicates version 2.9.4-1-gcda9516-SNAPSHOT https://broadinstitute.github.io/picard/command-line-overview.html
-* igvtools (from IGV Version 2.3.95)
-* bedtools 2.26.0
+* FastQC v0.11.9
+* bismark-0.23.0 https://www.bioinformatics.babraham.ac.uk/projects/bismark/
+* Methyldackel-0.6.1 (using HTSlib version 1.2.1) https://github.com/dpryan79/MethylDackel
+* trim_galore-0.6.6 https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/
+* fastq-dump : 2.11.0 (from sra toolkit) https://www.ncbi.nlm.nih.gov/sra/docs/toolkitsoft/
+* samtools-1.12 (using htslib 1.12) http://www.htslib.org/doc/samtools.html
+* picard MarkDuplicates version 2.25.5 https://broadinstitute.github.io/picard/command-line-overview.html
+* igvtools (from IGV Version 2.11.3)
+* bedtools 2.30.0
 
 \
 Majel will call the following python modules
@@ -193,6 +193,7 @@ usage: 0_initilize_majel_submission.sh [--help] [--job-dir=<path>] [--sample-nam
                                        [--skip-prompt] [--no-genome-transfer]
 
 arguments:
+  --help                 show this help message and exit
   --job-dir=             sets path to the job directory containing the project and sample directories (e.g. --job-dir=/scratch1/usr001)
   --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678)
   --mail-user=           sets email for SLURM notifications
@@ -241,17 +242,14 @@ arguments:
 
 ```
 
-
 ### 1_sbatch_parallel_sra_wget.sh
 This script is called by 0_initilize_majel_submission.sh if the user inputs run accessions (SRAs) for download.
 SRAs specified by the user are downloaded using aria2c (much faster than wget) and will automatically reattempt failed downloads without losing progress.
 For redundancy, wget is also attempted if aria2c fails.
 
-
 ### 2_sbatch_majel_submission.sh
 This script is called either by 0_initilize_majel_submission.sh if no SRAs are specified for download or by 1_sbatch_parallel_sra_wget.sh upon completion of SRA downloads.
 2_sbatch_majel_submission.sh is primarily a wrapper script for Majel.py
-
 
 ### 3_sbatch_io_SyncProcessedData.sh
 This script will be called by 2_sbatch_majel_submission.sh upon the successful completion of a Majel.py job and is used to sync data to the DNA methylation atlas or other location for long-term storage.
