@@ -153,6 +153,7 @@ Majel requires the following R packages
 * BSgenome.Mmusculus.UCSC.mm10
 * parallel
 
+
 ## Majel submission scripts
 
 The Batch_script_submission directory contains four BASH wrapper scripts used to simplify the process of submitting sequence files to Majel.py and SLURM.
@@ -160,9 +161,9 @@ These BASH submission scripts allow users to input settings without altering the
 These wrapper scripts also produce detailed logs of parameter inputs and pipeline outputs and errors. 
 If SLURM is present these scripts are submitted as jobs using the 'sbatch' command, otherwise they are run as background jobs using 'nohup' and '&'.
 
+
 ### 0_initilize_majel_submission.sh
-This script is the master controller and is used to take all user input and submit jobs to run through the entire processing pipeline. 
-This is where users will set all of their Majel run settings and is used to run through the entire pipeline, including:
+This script is the master controller and is used to take all user input and submit jobs to run through the entire processing pipeline, including:
 - sequnce file download or soft linking
 - running sequnce files through Majel.py
 - cleanup of temporary files
@@ -240,14 +241,17 @@ arguments:
 
 ```
 
+
 ### 1_sbatch_parallel_sra_wget.sh
 This script is called by 0_initilize_majel_submission.sh if the user inputs run accessions (SRAs) for download.
 SRAs specified by the user are downloaded using aria2c (much faster than wget) and will automatically reattempt failed downloads without losing progress.
 For redundancy, wget is also attempted if aria2c fails.
 
+
 ### 2_sbatch_majel_submission.sh
 This script is called either by 0_initilize_majel_submission.sh if no SRAs are specified for download or by 1_sbatch_parallel_sra_wget.sh upon completion of SRA downloads.
 2_sbatch_majel_submission.sh is primarily a wrapper script for Majel.py
+
 
 ### 3_sbatch_io_SyncProcessedData.sh
 This script will be called by 2_sbatch_majel_submission.sh upon the successful completion of a Majel.py job and is used to sync data to the DNA methylation atlas or other location for long-term storage.
