@@ -160,8 +160,6 @@ These BASH submission scripts allow users to input settings without altering the
 These wrapper scripts also produce detailed logs of parameter inputs and pipeline outputs and errors. 
 If SLURM is present these scripts are submitted as jobs using the 'sbatch' command, otherwise they are run as background jobs using 'nohup' and '&'.
 
-The scripts are as follows:
-
 ### 0_initilize_majel_submission.sh
 This script is the master controller and is used to take all user input and submit jobs to run through the entire processing pipeline. 
 This is where users will set all of their Majel run settings and is used to run through the entire pipeline, including:
