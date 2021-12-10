@@ -181,7 +181,7 @@ Basic usage for previously generated FASTQ files:\
 Path_to_majel_wgbspipline/Batch_script_submission/0_initilize_majel_submission.sh --job-dir=/path/to/pipeline_output
  --run-dir=/path/to/fastq_files --run-list="fastq_prefix_1 fastq_prefix_2" --sample-name=tissue_subtissue_condition_sampleID --project-name=project_ID --mail-user=email_address
  
- '''
+```
 usage: 0_initilize_majel_submission.sh [--help] [--job-dir=<path>] [--sample-name=<name>] [--mail-user=<email>]
                                        [--project-name=<name>] [--run-list=<list of run accessions (SRAs) OR fastq file prefixes>]
                                        [--run-dir=<path>] [--whole-experiment] [--experiment-accession] [--sample-file=<file>]
@@ -237,6 +237,8 @@ arguments:
   --sqlite-dir=          directory containing SRAmetadb.sqlite
   --skip-prompt          skips user confirmation (y/n) step
   --no-genome-transfer   disables files from --genome-path= being transferred to the --job-dir=, which occurs by default to greatly speed up SLURM job initiation
+
+```
 
 ### 1_sbatch_parallel_sra_wget.sh
 This script is called by 0_initilize_majel_submission.sh if the user inputs run accessions (SRAs) for download.
