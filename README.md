@@ -156,7 +156,7 @@ Majel requires the following R packages
 
 ## Majel submission scripts
 
-The Batch_script_submission directory contains four BASH wrapper scripts used to simplify the process of submitting sequence files to Majel.py and SLURM.
+The Batch_script_submission/ directory contains four BASH wrapper scripts used to simplify the process of submitting sequence files to Majel.py and SLURM.
 These BASH submission scripts allow users to input settings without altering the BASH submission script code.
 These wrapper scripts also produce detailed logs of parameter inputs and pipeline outputs and errors. 
 If SLURM is present these scripts are submitted as jobs using the 'sbatch' command, otherwise they are run as background jobs using 'nohup' and '&'.
@@ -171,7 +171,7 @@ This script is the master controller and is used to take all user input and subm
 
 When running this script on a single sample this script should be executed without submitting to SLURM.
 When run locally without submitting with the 'sbatch' command, the input parameters and details of the ensuing job submission are displayed to a user.
-At this point the user is prompted to confirm whether or not to continue with the submission, giveing an opportunity to cancel the submission process before it is engaged. 
+At this point the user is prompted to confirm whether or not to continue with the submission, giving an opportunity to cancel the submission process before it is engaged. 
 
 0_initilize_majel_submission.sh also allows users to specify a file with a list of samples to submit to SLURM and/or run through the Majel pipeline.
 Jobs are submitted based on the maximum number of concurrent jobs set by the user and the user prompt/confirmation function is disabled.
