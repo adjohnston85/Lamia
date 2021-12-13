@@ -2,8 +2,8 @@
 
 This data processing pipeline (nicknamed Majel) will process both paired- and single-end SRA files (from NCBI SRA database)\
 or paired-end FASTQ files. Fastq files can be obtained from some public data repositories, directly from your sequencing \
-provider or using bcl2fastq (on illumina output). SRA files can be obtained from [NCBI SRA database](https://www.ncbi.nlm.nih.gov/) using your prefered \
-method (e.g. wget).\
+provider or using bcl2fastq (on illumina output). SRA files can be obtained from [NCBI SRA database](https://www.ncbi.nlm.nih.gov/) using the 1_sbatch_parallel_sra_wget.sh \
+Majel submission script (detailed below).\
 \
 Majel will automate all subsequent standard processing steps, including conversion from sra to fastq (fastq-dump), read \
 trmming & FASTQC (trim-galore), mapping (bismark), duplicate marking (picard), methylation bias assesment & CpG methylation \
