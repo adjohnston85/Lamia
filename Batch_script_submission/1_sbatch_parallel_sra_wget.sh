@@ -106,7 +106,7 @@ done
 
 if [ -z $HELP ];then
     printf '\n'
-    printf '%s\n' 'usage: initilize_majel_submission.sh [--help] [--project-dir=<path>] [--sample-name=<name>] [--mail-user=<email>] [run-list=<list>]'
+    printf '%s\n' 'usage: 1_sbatch_parallel_sra_wget.sh [--help] [--project-dir=<path>] [--sample-name=<name>] [--mail-user=<email>] [run-list=<list>]'
     printf '\n'
     printf '%s\n' 'Mandatory arguments:'
     printf '%s\n' '  --project-dir=         sets the path to the project directory containing the sample directory (e.g. --project-dir=/scratch1/usr001/PRJNA123456)'

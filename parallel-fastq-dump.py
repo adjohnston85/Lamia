@@ -10,6 +10,7 @@ from subprocess import Popen, PIPE
 import re
 import sys
 import shlex
+from pathlib import Path
 
 __version__ = '0.6.7'
 
@@ -124,21 +125,27 @@ def get_spot_count(args, sra_id):
     sra_id : str
         SRA ID
     """
-    cmd = ['grep', sra_id + '|', args.tmpdir + '1_sbatch_parallel_sra_wget.log']
-    logging.info('CMD: {}'.format(' '.join(cmd)))
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = p.communicate()    
-    txt = stdout.decode().rstrip().split('\n')
-    total = 0
-    try:
+    def get_spots(cmd):
+        total = 0
+        logging.info('CMD: {}'.format(' '.join(cmd)))
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = p.communicate()
+        txt = stdout.decode().rstrip().split('\n')
         for l in txt:
             total += int(l.split('|')[2].split(':')[0])
-    except IndexError:
-        msg = 'sra-stat output parsing error!'
-        msg += '\n--sra-stat STDOUT--\n{}'
-        msg += '\n--sra-stat STDERR--\n{}'
-        etxt = stderr.decode().rstrip().split('\n')
-        raise IndexError(msg.format('\n'.join(txt), '\n'.join(etxt)))
+        return total
+
+    try:
+        total = get_spots(['sra-stat', '--meta', '--quick', Path(sra_id).stem])
+    except:
+        try:
+            total = get_spots(['grep', sra_id + '|', args.tmpdir + '1_sbatch_parallel_sra_wget.log'])
+        except IndexError:
+            msg = 'sra-stat output parsing error!'
+            msg += '\n--sra-stat STDOUT--\n{}'
+            msg += '\n--sra-stat STDERR--\n{}'
+            etxt = stderr.decode().rstrip().split('\n')
+            raise IndexError(msg.format('\n'.join(txt), '\n'.join(etxt)))
     return total
 
 def partition(f, l):

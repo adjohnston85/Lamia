@@ -98,7 +98,7 @@ done
 if [ -z $HELP ]
 then
     printf '\n'
-    printf '%s\n' 'usage: sbatch_majel_submission_AJ.sh'
+    printf '%s\n' 'usage: 2_sbatch_majel_submission.sh'
     printf '\n'
     printf '%s\n' '  --project-dir=         sets the path to the project directory containing the sample directory (e.g. --project-dir=/scratch1/usr001/PRJNA123456)'
     printf '%s\n' '  --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678)'
