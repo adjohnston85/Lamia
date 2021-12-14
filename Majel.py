@@ -224,7 +224,7 @@ if sraFiles:
 def detect_input_type(input_files):
     if all([re.match(".+\\.f(ast)?q(.gz)?", file) for file in input_files]) and input_files:
         logger.log(MESSAGE, timestamp("Running from fastq"))
-    elif any([re.match(".+\\.f(ast)?q(.gz)?", file) for file in input_files]) and input_files::
+    elif any([re.match(".+\\.f(ast)?q(.gz)?", file) for file in input_files]) and input_files:
         logger.log(MESSAGE, timestamp("Data directory contains a mixture of file types, including fastqs. Running from fastq."))
         infiles = [file for file in input_files if re.match(".+\\.f(ast)?q(.gz)?", file)]
     else:
