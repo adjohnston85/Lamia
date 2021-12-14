@@ -178,9 +178,13 @@ Jobs are submitted based on the maximum number of concurrent jobs set by the use
 These jobs are then monitored and subsequent samples in the list are submitted when a job completes or fails due to an error.
 If running on a system using SLURM, this script should be submitted with 'sbatch' when a sample file is specified.
 
-Basic usage for previously generated FASTQ files:\
-Path_to_majel_wgbspipline/Batch_script_submission/0_initilize_majel_submission.sh --job-dir=/path/to/pipeline_output
- --run-dir=/path/to/fastq_files --run-list="fastq_prefix_1 fastq_prefix_2" --sample-name=tissue_subtissue_condition_sampleID --project-name=project_ID --mail-user=email_address
+Basic usage for  SRAs:
+Path_to_majel_wgbspipline/Batch_script_submission/0_initilize_majel_submission.sh --job-dir=/path/to/pipeline_output --run-list="SRR001 SRR002" \
+--sample-name=tissue_subtissue_condition_sampleID --project-name=project_ID --mail-user=email_address
+
+Basic usage for previously generated FASTQ files:
+Path_to_majel_wgbspipline/Batch_script_submission/0_initilize_majel_submission.sh --job-dir=/path/to/pipeline_output --run-dir=/path/to/fastq_files \
+--run-list="fastq_prefix_1 fastq_prefix_2" --sample-name=tissue_subtissue_condition_sampleID --project-name=project_ID --mail-user=email_address
  
 ```
 usage: 0_initilize_majel_submission.sh [--help] [--job-dir=<path>] [--sample-name=<name>] [--mail-user=<email>]
@@ -212,7 +216,7 @@ arguments:
                          colon,colon,Normal_adjacent_tissue_P6,SRR949213 SRR949214 SRR949215,Andrew Johnston
 
                          FASTQ <sample-file> example:
-                         breast,breast,normal tissue,breast_run1;breast_run2,Andrew Johnston,--project-name=BRE001,--run-dir=/path/to/files,--sample-name=Breast_NOS_NormalTissue_BRE001
+                         breast,breast,normal tissue,breast_run1;breast_run2,Andrew Johnston,--project-name=BRE001,--run-dir=/path/to/files,--sample-name=Breast_NOS_NormalTissue_BRE1234
 
                          Note: arguments are generally not required in this file for run accessions (SRAs), as <sample-name> and <project-name> will be determined from SRAmetadb.sqlite, if possible.
                                arguments that apply to all samples included in the <sample-file> such as <job-dir> and <mail-user> can be declared globally
