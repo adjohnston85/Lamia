@@ -181,7 +181,7 @@ job_submission() {
     SAMPLE_DIR="$PROJECT_DIR/$SAMPLE_NAME"
     mkdir -p "$SAMPLE_DIR/data"
 
-    LOG_FILE="$SAMPLE_DIR/0_initilize_majel_submission.log"
+    LOG_FILE="$SAMPLE_DIR/0_initialise_majel_submission.log"
     > $LOG_FILE
 
     PARAMETERS_FILE="$SAMPLE_DIR/run_parameters_$SAMPLE_NAME.txt"
@@ -381,7 +381,7 @@ else
     CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:" "methylseekrAndTDF did not complete")
 fi
 
-CHECK_FILES="0_initilize_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log 3_sbatch_io_SyncProcessedData.log"
+CHECK_FILES="0_initialise_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log 3_sbatch_io_SyncProcessedData.log"
 
 completion_check() {
 
@@ -522,7 +522,7 @@ set_defaults
 get_arguments "$@"
 
 if [ -z $HELP ]; then
-    printf '\n%s\n'   'usage: 0_initilize_majel_submission.sh [--help] [--job-dir=<path>] [--sample-name=<name>] [--mail-user=<email>]'
+    printf '\n%s\n'   'usage: 0_initialise_majel_submission.sh [--help] [--job-dir=<path>] [--sample-name=<name>] [--mail-user=<email>]'
     printf '%s\n'     '                                       [--project-name=<name>] [--run-list=<list of run accessions (SRAs) OR fastq file prefixes>]'
     printf '%s\n'     '                                       [--run-dir=<path>] [--whole-experiment] [--experiment-accession] [--sample-file=<file>]'
     printf '%s\n'     '                                       [--concurrent-jobs] [--dl-attempts=<integer>]  [--dl-only] [--skip-dl] [--majel-time=<time>]'

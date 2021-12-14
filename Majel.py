@@ -197,22 +197,8 @@ def getDirection():
 #     walt_cmd = aligner_select(target_genome, options.threads, [fq_files], base_name)
 #     return walt_cmd
 
-def detect_input_type(input_files):
-    if all([re.match(".+\\.f(ast)?q(.gz)?", file) for file in input_files]) and input_files:
-        logger.log(MESSAGE, timestamp("Running from fastq"))
-    else:
-        logger.log(MESSAGE, timestamp("Input files appear to be in incorrect or mixed formats"))
-        sys.exit(1)
-
-sraFiles = []
-for root, dirs, files in os.walk(options.data_dir):
-    for file in files:
-        #append the file name to the list
-        if file.endswith('sra'):
-            sraFiles.append(os.path.join(root,file))     
-
-#extract from sra
-def sraToFastq(input_files,logger, logger_mutex):
+#if data directory contains SRA files, convert these to fastqs
+def prepFastQ(input_files,logger, logger_mutex):
     dataFiles=[file for file in os.listdir(options.data_dir)]
     for sra in input_files:
         if Path(sra).stem + "_1.fastq.gz" not in dataFiles and Path(sra).stem + "_2.fastq.gz" not in dataFiles:
@@ -224,14 +210,32 @@ def sraToFastq(input_files,logger, logger_mutex):
             with logger_mutex:
                 logger.log(MESSAGE,"Extracted fastq from sra")
 
-if sraFiles:
-    sraToFastq(sraFiles, logger, logger_mutex)
+sraFiles = []
+for root, dirs, files in os.walk(options.data_dir):
+    for file in files:
+        #append the file name to the list
+        if file.endswith('sra'):
+            sraFiles.append(os.path.join(root,file))     
 
+if sraFiles:
+    prepFastQ(sraFiles, logger, logger_mutex)
+
+#locate fastq files in data directory to run through pipeline
+def detect_input_type(input_files):
+    if all([re.match(".+\\.f(ast)?q(.gz)?", file) for file in input_files]) and input_files:
+        logger.log(MESSAGE, timestamp("Running from fastq"))
+    elif any([re.match(".+\\.f(ast)?q(.gz)?", file) for file in input_files]) and input_files::
+        logger.log(MESSAGE, timestamp("Data directory contains a mixture of file types, including fastqs. Running from fastq."))
+        infiles = [file for file in input_files if re.match(".+\\.f(ast)?q(.gz)?", file)]
+    else:
+        logger.log(MESSAGE, timestamp("No fastq files exist in data directory"))
+        sys.exit(1)    
+    
 infiles=[os.path.join(options.data_dir, file) for file in os.listdir(options.data_dir) if os.path.isfile(os.path.join(options.data_dir, file))]
 infiles.sort()
 detect_input_type(infiles)
 
-#pair files and prepare for ruffus 
+#pair fastq files and prepare for ruffus 
 if options.is_paired_end == "True":
     infiles = [[r1,r2] for r1,r2 in zip(infiles[::2], infiles[1::2])]
 
