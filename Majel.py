@@ -40,6 +40,8 @@ parser.add_argument("--data_dir", help="Directory for input fastq/sra files",
 parser.add_argument("--sample_name", help='Sample name. Used for output file names and should match directory name. Will determine colouring of TDF track file and must conform to following convention "Tissue_SubTissue_HealthStatus_Identifier"')
 parser.add_argument("--threads", help="Speed up alignment and other processes by increasing number of threads. Defaults to 20 (this number is divided by 5 for Bismark, as 4 aligner threads uses ~20 cores and ~40GB of RAM)",
                           default=4)
+parser.add_argument("--trim_profile", help="Sets the profile for number of base pairs trimmed from 3' and 5' ends of sequence reads (post adapter trimming). Options are: bs-seq, em-seq, & no-trim (defaults to bs-seq)",
+                          default="bs-seq")
 parser.add_argument("--pbat", action='store_true',
                           help="Specify when aligning pbat library")
 parser.add_argument("--non_directional", action='store_true',
@@ -253,11 +255,35 @@ else:
                                       '{file_details[0]}2{set_number[0]}_val_2.fq.gz'], logger, logger_mutex)
 
 def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
+    trim_profile = str(options.trim_profile).split(",")
+    L_trim_lengths = []
+    L_trim_options = ["--clip_R1 ", "--clip_R2 ", "--three_prime_clip_R1 ", "--three_prime_clip_R2 "]
+    
+    if trim_profile[0] == "em-seq":
+        trim_profile[0] = "8"
+    elif trim_profile[0] == "bs-seq":
+        trim_profile[0] = "10"
+    elif trim_profile[0] == "no-trim":
+        trim_profile[0] = "0"
+    else:
+        try:
+            int(trim_profile[0])
+        except:
+            raise Exception("Invalid --trim_profile. Must be a single integer, a comma seperated list of 4 integers, or one of the following: em-seq, bs-seq, no-trim")
+    
+    for x in range(4):
+        trim_profile.append(trim_profile[0])
+        if trim_profile[x] != "0":
+            L_trim_lengths.append(L_trim_options[x] + trim_profile[x] + " ")
+        else:
+            L_trim_lengths.append("")
+
     trimPath = getFunctionPath("trim_galore")
     if options.is_paired_end == "True":
         if all([len(files) == 2 for files in input_files]):
             threads = int(options.threads) // 4 if int(options.threads) > 4 else 1
-            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores %s --clip_R1 10 --clip_R2 10 --three_prime_clip_R1 10 --three_prime_clip_R2 10 --paired %s %s' % tuple([trimPath] + [str(threads)] + input_files[0]))
+          
+            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores %s %s %s %s %s --paired %s %s' % tuple([trimPath] + [str(threads)] + L_trim_lengths + input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
         else:
             raise Exception("Unpaired files in input.")

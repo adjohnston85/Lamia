@@ -43,6 +43,7 @@ set_defaults() {
     NO_GENOME_TRANSFER='false'
     
     unset DL_ONLY
+    unset RSYNC_ONLY
     unset SAMPLE_NAME
     unset PROJECT_NAME
     unset RUN_LIST
@@ -106,6 +107,9 @@ get_arguments() {
         --dl-only)
           DL_ONLY="--dl-only "
           ;;
+	--rsync-only)
+          RSYNC_ONLY="--rsync-only "
+          ;;  
 	--experiment-accession)
           EXPERIMENT_ACCESSION='true'
 	  ;;
@@ -179,170 +183,182 @@ job_submission() {
     [[ $NO_GENOME_TRANSFER == 'true' ]] || GENOME_PATH="$JOB_DIR/"
     PROJECT_DIR="$JOB_DIR/$PROJECT_NAME"
     SAMPLE_DIR="$PROJECT_DIR/$SAMPLE_NAME"
-    mkdir -p "$SAMPLE_DIR/data"
 
-    LOG_FILE="$SAMPLE_DIR/0_initialise_majel_submission.log"
-    > $LOG_FILE
+    if [[ ! -z $RSYNC_ONLY ]]; then
 
-    PARAMETERS_FILE="$SAMPLE_DIR/run_parameters_$SAMPLE_NAME.txt"
-    > $PARAMETERS_FILE
+        SUBMISSION="$MAJEL_DIR/majel_cleanup.sh $SAMPLE_NAME &>> slurm_majel_stdout.log"
+        eval $SUBMISSION
 
-    #add space after additional majel arguments, if they exist
-    [[ -z $MAJEL_ARGS ]] || MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
-
-    #print time and script inputs
-    printf '%s'     "$BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME " | tee -a $LOG_FILE
-    printf '%s'     " --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --genome=$GENOME " | tee -a $LOG_FILE
-    printf '%s'     " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --run-list=\"$RUN_LIST\"" | tee -a $LOG_FILE
-    printf '%s\n\n' " --run-dir=${RUN_DIR}" | tee -a $LOG_FILE 
-
-    #check the values of mandatory arguments
-    check_argument "job-dir" $JOB_DIR
-    check_argument "project-name" $PROJECT_NAME 
-    check_argument "project-dir" $PROJECT_DIR
-    check_argument "sample-name" $SAMPLE_NAME
-
-    #print info on the SAMPLE_FILE used to run multiple Majel jobs at once
-    if [[ ! -z $SAMPLE_FILE ]]; then
-        printf '%s\n' "--sample-file=$SAMPLE_FILE"
-        printf '%s\n' "--concurrent-jobs=$CONCURRENT_JOBS"
-    fi
+        SUBMISSION="${RSYNC_PREFIX}$SCRIPT_DIR/3_sbatch_io_SyncProcessedData.sh --sync-to=$SYNC_TO --sync-from=$PROJECT_DIR/$SAMPLE_NAME &>> slurm_majel_stdout.log"
     
-    #check if this pipeline is being run on cluster with a slurm submission system, if so specifying an email is mandatory
-    if hash slurm 2> /dev/null; then
-        check_argument "mail-user" $EMAIL
-    fi
+    else
+
+        mkdir -p "$SAMPLE_DIR/data"
+    
+        LOG_FILE="$SAMPLE_DIR/0_initialise_majel_submission.log"
+        > $LOG_FILE
+    
+        PARAMETERS_FILE="$SAMPLE_DIR/run_parameters_$SAMPLE_NAME.txt"
+        > $PARAMETERS_FILE
+    
+        #add space after additional majel arguments, if they exist
+        [[ -z $MAJEL_ARGS ]] || MAJEL_ARGS=$(echo "$MAJEL_ARGS " | tr -d '"')
+    
+        #print time and script inputs
+        printf '%s'     "$BASH_SOURCE --project-dir=$PROJECT_DIR --sample-name=$SAMPLE_NAME --mail-user=$EMAIL --majel-time=$MAJEL_TIME " | tee -a $LOG_FILE
+        printf '%s'     " --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM --rsync-tim=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --genome=$GENOME " | tee -a $LOG_FILE
+        printf '%s'     " --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\" --run-list=\"$RUN_LIST\"" | tee -a $LOG_FILE
+        printf '%s\n\n' " --run-dir=${RUN_DIR}" | tee -a $LOG_FILE 
+    
+        #check the values of mandatory arguments
+        check_argument "job-dir" $JOB_DIR
+        check_argument "project-name" $PROJECT_NAME 
+        check_argument "project-dir" $PROJECT_DIR
+        check_argument "sample-name" $SAMPLE_NAME
+    
+        #print info on the SAMPLE_FILE used to run multiple Majel jobs at once
+        if [[ ! -z $SAMPLE_FILE ]]; then
+            printf '%s\n' "--sample-file=$SAMPLE_FILE"
+            printf '%s\n' "--concurrent-jobs=$CONCURRENT_JOBS"
+        fi
         
-    #covert path variable to full path (i.e. ./destionation -> /full/path/to/destionation)
-    PROJECT_DIR="$(cd $PROJECT_DIR && pwd)"
-
-    #if SRAs were not specified for download make sure sequence files exist in /data directory
-    if [[ ! -z $RUN_DIR ]]; then
-	check_argument "run-dir" $RUN_DIR
-	if [[ -d $RUN_DIR ]]; then
-	    if [[ ! -z $RUN_LIST ]]; then
-		check_argument "run-list" "$RUN_LIST"
-                for FILE_PREFIX in $RUN_LIST; do
-		    RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX).*_?[rR]?[12]?\.(fq|fastq)\.?(gz)?"))
-		    RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)"))
-	        done
-            else
-                RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/.*_?[rR]?[12]?\.(fq|fastq)\.?(gz)?"))
-            fi
-
-	    if [[ ! -z $RUN_FILES ]]; then
-                for FILE in ${RUN_FILES[@]}; do
-	            ln -sf $FILE $PROJECT_DIR/$SAMPLE_NAME/data/$(basename $FILE)
-                done
-            else
-                printf '%s\n' "Error: the run \"${FILE_PREFIX}\" specified in --run-list= does not exist in the --run-dir=$RUN_DIR directory" | tee -a $LOG_FILE
-	        FAIL='true'
-	    fi
-        else
-            printf '%s\n' "Error: the directory in --run-dir=$RUN_DIR does not exist" | tee -a $LOG_FILE
-            FAIL='true'
+        #check if this pipeline is being run on cluster with a slurm submission system, if so specifying an email is mandatory
+        if hash slurm 2> /dev/null; then
+            check_argument "mail-user" $EMAIL
+            RSYNC_PREFIX="sbatch --time=$RSYNC_TIME --mem=$RSYNC_MEM --mail-user=$EMAIL --job-name=RSYNC:$SAMPLE_NAME "
+        fi
             
-            check_argument "run-list" "\"$RUN_LIST\""
-            check_argument "run-dir" "$RUN_DIR"
-        fi
-
-    elif [[ -z $RUN_LIST ]]; then
-	    RUN_FILES=($(find $PROJECT_DIR/$SAMPLE_NAME/data -regextype posix-extended -regex ".*/.*_?[rR]?[12]?\.(fq|fastq|sra)\.?(gz)?"))
-	if [[ ${#RUN_FILES[@]} == 0 ]]; then
-            printf '%s\n'   "Error: IF --run-list= is not used to specify SRA file(s) for download" | tee -a $LOG_FILE	
-	    printf '%s\n'   "Error: OR --run-list= and --run-dir= are not used to specify files for soft linking" | tee -a $LOG_FILE
-            printf '%s\n\n' "Error: THEN $PROJECT_DIR/$SAMPLE_NAME/data must contain SRA (.sra) or FASTQ (.fastq.gz OR fq.gz) files" | tee -a $LOG_FILE
-	    FAIL='true'
-        fi
-    else
-        check_argument "run-list" "\"$RUN_LIST\""
-	printf '%s\n' "--run-dir=${RUN_DIR}" | tee -a $LOG_FILE $PARAMETERS_FILE
-    fi
-
-    cd $PROJECT_DIR/$SAMPLE_NAME
-
-    #print the values of all arguments for user to examine
-    check_argument "majel-time" $MAJEL_TIME
-    check_argument "majel-ntaskts" $MAJEL_NTASKS
-    check_argument "majel-mem" $MAJEL_MEM
-    check_argument "rsync-time" $RSYNC_TIME
-    check_argument "rsync-mem" $RSYNC_MEM
-    check_argument "sync-to" $SYNC_TO
-    check_argument "genome" $GENOME
-    check_argument "genome-path" $GENOME_PATH
-    check_argument "majel-dir" $MAJEL_DIR
-       
-    #prints MAJEL_ARGS values without checking for existance (this argument is not required for subsequent steps)
-    printf '%s\n\n' "--majel-args=\"${MAJEL_ARGS}\"" | tee -a $LOG_FILE $PARAMETERS_FILE
-
-    if [[ $FAIL == 'true' ]]; then
-        printf '%s\n\n' "job submission failed due to an error" | tee -a $LOG_FILE
-        return
-    fi
-
-    if [[ -z $RUN_FILES ]]; then
-        printf '%s\n\n' "Majel will run on following SRA files that will be downloaded to $PROJECT_DIR/$SAMPLE_NAME/data:" | tee -a $LOG_FILE
-	RUN_FILES=($RUN_LIST)
-	RUN_FILES=( "${RUN_FILES[@]/%/.sra}" )
-    else
-        printf '%s\n\n' "Majel will run on the following files located in $PROJECT_DIR/$SAMPLE_NAME/data:" | tee -a $LOG_FILE
-    fi
+        #covert path variable to full path (i.e. ./destionation -> /full/path/to/destionation)
+        PROJECT_DIR="$(cd $PROJECT_DIR && pwd)"
     
-    for FILE in ${RUN_FILES[@]}; do
-        printf '%s' "$(basename $FILE) " | tee -a $LOG_FILE
-    done
-       
-    printf '\n\n' | tee -a $LOG_FILE
-
-    if [[ -z $RUN_LIST ]] || [[ ! -z $RUN_DIR ]] || [[ $SKIP_DL == "true" ]]; then
-
-        set_fixes "sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
- 
-        #set job submission variable for if --run-list= was not declared (skips SRA download script)
-        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR "
-        SUBMISSION+="--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH "
-        SUBMISSION+="--majel-threads=$MAJEL_NTASKS --sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
-    else
-        #convert string series to proper array
-        TMP_ARRAY=($RUN_LIST)
-        LEN_ARRAY=$(expr ${#TMP_ARRAY[@]} - 1)
-        #calculate number of cores based on number of SRA files to be downloaded (5 file downloads per core, as advised by IMT)
-        CORES=$(($LEN_ARRAY/5+1))
- 
-        set_fixes "sbatch --job-name=SRA_DL:${SAMPLE_NAME} --mail-user=$EMAIL --ntasks-per-node=$CORES "
-
-        ##set job submission variable for if --run-list= was declared
-        SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM "
-        SUBMISSION+="--run-list=\"$RUN_LIST\" --dl-attempts=$DL_ATTEMPTS --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
-        SUBMISSION+="--sync-to=$SYNC_TO --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR $DL_ONLY--majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
-    fi
-
-    #print job parameters and sbatch submission for user to check
-    printf '%s\n\n' "These parameters will result in the following submission:" | tee -a $LOG_FILE
-    printf '%s\n\n' "$SUBMISSION" | tee -a $LOG_FILE
-
-    if [[ -z $DL_ONLY ]]; then
-        printf '%s\n\n' "These parameters will result in the following Majel.py job:" | tee -a $LOG_FILE
-        printf '%s'     "python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME " | tee -a $LOG_FILE
-        printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --threads $MAJEL_NTASKS ${MAJEL_ARGS}" | tee -a $LOG_FILE
-        printf '%s\n\n' "-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log" | tee -a $LOG_FILE
-    fi
-
-    #skip user confirmation step if --skip-promt argument was set
-    if [[ $SKIP_PROMPT == "false" ]]; then
-        read -p "Would you like to continue?(Y/N)" -n 1 -r
-        printf '\n'
-    fi
-
+        #if SRAs were not specified for download make sure sequence files exist in /data directory
+        if [[ ! -z $RUN_DIR ]]; then
+	    check_argument "run-dir" $RUN_DIR
+	    if [[ -d $RUN_DIR ]]; then
+	        if [[ ! -z $RUN_LIST ]]; then
+		    check_argument "run-list" "$RUN_LIST"
+                    for FILE_PREFIX in $RUN_LIST; do
+		        RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX).*_?[rR]?[12]?\.(fq|fastq)\.?(gz)?"))
+		        RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/($FILE_PREFIX)"))
+	            done
+                else
+                    RUN_FILES+=($(find $RUN_DIR/ -regextype posix-extended -regex ".*/.*_?[rR]?[12]?\.(fq|fastq)\.?(gz)?"))
+                fi
+    
+	        if [[ ! -z $RUN_FILES ]]; then
+                    for FILE in ${RUN_FILES[@]}; do
+	                ln -sf $FILE $PROJECT_DIR/$SAMPLE_NAME/data/$(basename $FILE)
+                    done
+                else
+                    printf '%s\n' "Error: the run \"${FILE_PREFIX}\" specified in --run-list= does not exist in the --run-dir=$RUN_DIR directory" | tee -a $LOG_FILE
+	            FAIL='true'
+	        fi
+            else
+                printf '%s\n' "Error: the directory in --run-dir=$RUN_DIR does not exist" | tee -a $LOG_FILE
+                FAIL='true'
+                
+                check_argument "run-list" "\"$RUN_LIST\""
+                check_argument "run-dir" "$RUN_DIR"
+            fi
+    
+        elif [[ -z $RUN_LIST ]]; then
+	        RUN_FILES=($(find $PROJECT_DIR/$SAMPLE_NAME/data -regextype posix-extended -regex ".*/.*_?[rR]?[12]?\.(fq|fastq|sra)\.?(gz)?"))
+	    if [[ ${#RUN_FILES[@]} == 0 ]]; then
+                printf '%s\n'   "Error: IF --run-list= is not used to specify SRA file(s) for download" | tee -a $LOG_FILE	
+	        printf '%s\n'   "Error: OR --run-list= and --run-dir= are not used to specify files for soft linking" | tee -a $LOG_FILE
+                printf '%s\n\n' "Error: THEN $PROJECT_DIR/$SAMPLE_NAME/data must contain SRA (.sra) or FASTQ (.fastq.gz OR fq.gz) files" | tee -a $LOG_FILE
+	        FAIL='true'
+            fi
+        else
+            check_argument "run-list" "\"$RUN_LIST\""
+	    printf '%s\n' "--run-dir=${RUN_DIR}" | tee -a $LOG_FILE $PARAMETERS_FILE
+        fi
+    
+        #print the values of all arguments for user to examine
+        check_argument "majel-time" $MAJEL_TIME
+        check_argument "majel-ntaskts" $MAJEL_NTASKS
+        check_argument "majel-mem" $MAJEL_MEM
+        check_argument "rsync-time" $RSYNC_TIME
+        check_argument "rsync-mem" $RSYNC_MEM
+        check_argument "sync-to" $SYNC_TO
+        check_argument "genome" $GENOME
+        check_argument "genome-path" $GENOME_PATH
+        check_argument "majel-dir" $MAJEL_DIR
+           
+        #prints MAJEL_ARGS values without checking for existance (this argument is not required for subsequent steps)
+        printf '%s\n\n' "--majel-args=\"${MAJEL_ARGS}\"" | tee -a $LOG_FILE $PARAMETERS_FILE
+    
+        if [[ $FAIL == 'true' ]]; then
+            printf '%s\n\n' "job submission failed due to an error" | tee -a $LOG_FILE
+            return
+        fi
+    
+        if [[ -z $RUN_FILES ]]; then
+            printf '%s\n\n' "Majel will run on following SRA files that will be downloaded to $PROJECT_DIR/$SAMPLE_NAME/data:" | tee -a $LOG_FILE
+	    RUN_FILES=($RUN_LIST)
+	    RUN_FILES=( "${RUN_FILES[@]/%/.sra}" )
+        else
+            printf '%s\n\n' "Majel will run on the following files located in $PROJECT_DIR/$SAMPLE_NAME/data:" | tee -a $LOG_FILE
+        fi
+        
+        for FILE in ${RUN_FILES[@]}; do
+            printf '%s' "$(basename $FILE) " | tee -a $LOG_FILE
+        done
+           
+        printf '\n\n' | tee -a $LOG_FILE
+    
+        cd $PROJECT_DIR/$SAMPLE_NAME
+    
+        if [[ -z $RUN_LIST ]] || [[ ! -z $RUN_DIR ]] || [[ $SKIP_DL == "true" ]]; then
+    
+            set_fixes "sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
+     
+            #set job submission variable for if --run-list= was not declared (skips SRA download script)
+            SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR "
+            SUBMISSION+="--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH "
+            SUBMISSION+="--majel-threads=$MAJEL_NTASKS --sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
+        else
+            #convert string series to proper array
+            TMP_ARRAY=($RUN_LIST)
+            LEN_ARRAY=$(expr ${#TMP_ARRAY[@]} - 1)
+            #calculate number of cores based on number of SRA files to be downloaded (5 file downloads per core, as advised by IMT)
+            CORES=$(($LEN_ARRAY/5+1))
+     
+            set_fixes "sbatch --job-name=SRA_DL:${SAMPLE_NAME} --mail-user=$EMAIL --ntasks-per-node=$CORES "
+    
+            ##set job submission variable for if --run-list= was declared
+            SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/1_sbatch_parallel_sra_wget.sh --majel-time=$MAJEL_TIME --majel-ntasks=$MAJEL_NTASKS --majel-mem=$MAJEL_MEM "
+            SUBMISSION+="--run-list=\"$RUN_LIST\" --dl-attempts=$DL_ATTEMPTS --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR --rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM "
+            SUBMISSION+="--sync-to=$SYNC_TO --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH --majel-dir=$MAJEL_DIR $DL_ONLY--majel-args=\"${MAJEL_ARGS}\"$SUB_SUFFIX"
+        fi
+        
+        #print job parameters and sbatch submission for user to check
+        printf '%s\n\n' "These parameters will result in the following submission:" | tee -a $LOG_FILE
+        printf '%s\n\n' "$SUBMISSION" | tee -a $LOG_FILE
+    
+        if [[ -z $DL_ONLY ]] && [[ -z $RSYNC_ONLY ]]; then
+            printf '%s\n\n' "These parameters will result in the following Majel.py job:" | tee -a $LOG_FILE
+            printf '%s'     "python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME " | tee -a $LOG_FILE
+            printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --threads $MAJEL_NTASKS ${MAJEL_ARGS}" | tee -a $LOG_FILE
+            printf '%s\n\n' "-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log" | tee -a $LOG_FILE
+        fi
+    
+        #skip user confirmation step if --skip-promt argument was set
+        if [[ $SKIP_PROMPT == "false" ]]; then
+            read -p "Would you like to continue?(Y/N)" -n 1 -r
+            printf '\n'
+        fi
+   fi
+  
     #confirmation of user input
     if [[ $REPLY =~ ^[Yy]$ ]] || [[ $SKIP_PROMPT != 'false' ]] && [[ -z $FAIL ]]; then
-	printf '%s\n\n' "Job was submitted on $(date '+%B %d %Y at %T %Z')" | tee -a $LOG_FILE
+        printf '%s\n\n' "Job was submitted on $(date '+%B %d %Y at %T %Z')" | tee -a $LOG_FILE
         
         #submit job
         eval "$SUBMISSION" | tee -a $LOG_FILE
     else
         printf '%s\n\n' "Job was not submitted" | tee -a $LOG_FILE
-	exit 1
+        exit 1
     fi
     
     unset QUEUED_ARRAY[0]
@@ -375,22 +391,22 @@ ledger_check() {
 }
 
 
-if [[ $DL_ONLY == 'true' ]]; then
-    CHECK_PHRASES=("dl-only completed" "Error:")
-else
-    CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:" "methylseekrAndTDF did not complete")
-fi
-
-CHECK_FILES="0_initialise_majel_submission.log 1_sbatch_parallel_sra_wget.log 2_sbatch_majel_submission.log 3_sbatch_io_SyncProcessedData.log"
-
 completion_check() {
+    
+    if [[ ! -z $DL_ONLY ]]; then
+        CHECK_PHRASES=("dl-only completed" "Error:")
+        CHECK_FILES="0_initialise_majel_submission.log 1_sbatch_parallel_sra_wget.log slurm_majel_stdout.log"
+    else
+        CHECK_PHRASES=("MethylSeekR and toTDF Completed" "Error:" "methylseekrAndTDF did not complete" "sending incremental file list")
+        CHECK_FILES="0_initialise_majel_submission.log 1_sbatch_parallel_sra_wget.log slurm_majel_stdout.log 2_sbatch_majel_submission.log 3_sbatch_io_SyncProcessedData.log"
+    fi
 
-    CHECK='false'	
+    CHECK='false'
     for FILE in $CHECK_FILES; do
         for PHRASE in "${CHECK_PHRASES[@]}"; do
-	    if grep -q -s "$PHRASE" $PROJECT_DIR/$SAMPLE_NAME/$FILE; then
+            if grep -q -s "$PHRASE" $PROJECT_DIR/$SAMPLE_NAME/$FILE; then
                 CHECK='true'
-		break 2
+                break 2
             fi
         done
     done
@@ -423,20 +439,20 @@ report_jobs() {
 
 
 submission_cycle() {
-   
+
     i=0
     while [[ ${#SAMPLE_ARRAY[@]} -ge $1 ]]; do
         SAMPLE_NAME=$(basename ${SAMPLE_ARRAY[i]})
         PROJECT_DIR=$(dirname ${SAMPLE_ARRAY[i]})
-	PROJECT_NAME=$(basename $PROJECT_DIR)
+        PROJECT_NAME=$(basename $PROJECT_DIR)
         completion_check
-       
+
         if [[ $CHECK == 'true' ]]; then
-            
-	    CSV=(); while read -rd,; do CSV+=("$(echo "${REPLY^}")"); done <<<"${CSV_ARRAY[i]},"
+
+            CSV=(); while read -rd,; do CSV+=("$(echo "${REPLY^}")"); done <<<"${CSV_ARRAY[i]},"
             DATE=$(date '+%Y-%m-%d')
-	 
-	    if [[ ! -z ${CSV[4]} ]]; then
+
+            if [[ ! -z ${CSV[4]} ]]; then
                 USER_NAME=${CSV[4]}
             elif [[ ! -z $EMAIL ]]; then
                 USER_NAME="$(echo  "${EMAIL^}" | cut -d @ -f 1 | tr '.' ' ' | sed 's/ [[:lower:]]/\U&/g')"
@@ -444,33 +460,35 @@ submission_cycle() {
                 USER_NAME=$USER
             fi
 
-	    if grep -q -s "MethylSeekR and toTDF Completed" ${SAMPLE_ARRAY[i]}/slurm_majel_stdout.log; then
+            if grep -q -s "MethylSeekR and toTDF Completed" ${SAMPLE_ARRAY[i]}/slurm_majel_stdout.log || \
+               grep -q -s "sending incremental file list" ${SAMPLE_ARRAY[i]}/3_sbatch_io_SyncProcessedData.log || \
+	       grep -q -s "dl-only completed" ${SAMPLE_ARRAY[i]}/1_sbatch_parallel_sra_wget.log; then
                 ledger_check "completed"
-		SUCCESS_ARRAY+=("${SAMPLE_ARRAY[i]}")
+                SUCCESS_ARRAY+=("${SAMPLE_ARRAY[i]}")
             elif grep -q -s "dl-only completed" ${SAMPLE_ARRAY[i]}/1_sbatch_parallel_sra_wget.log; then
                 SUCCESS_ARRAY+=("${SAMPLE_ARRAY[i]}")
             else
                 ledger_check "failed"
-		FAIL_ARRAY+=("${SAMPLE_ARRAY[i]}")
+                FAIL_ARRAY+=("${SAMPLE_ARRAY[i]}")
             fi
 
             unset SAMPLE_ARRAY[i]
             SAMPLE_ARRAY=("${SAMPLE_ARRAY[@]}")
             unset CSV_ARRAY[i]
-            CSV_ARRAY=("${CSV_ARRAY[@]}")	    
-            
+            CSV_ARRAY=("${CSV_ARRAY[@]}")
+
             if [[ ! -z $2 ]]; then
                 report_jobs
-            fi   
+            fi
         fi
- 
+
         ((i++))
 
         if [[ $i -ge ${#SAMPLE_ARRAY[@]} ]]; then
             i=0
         fi
 
-        sleep 10m
+        sleep 10s
     done
 }
 
@@ -557,6 +575,7 @@ if [ -z $HELP ]; then
     printf '%s\n'     '  --dl-attempts=         sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
     printf '%s\n'     '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
     printf '%s\n'     '  --dl-only              downloads SRA files but skips subsequent steps including running through Majel.py'
+    printf '%s\n'     '  --rsync-only           jumps to final rsync step enacted by 3_sbatch_io_SyncProcessedData.sh'
     printf '%s\n'     '  --skip-dl              skips the SRA download step and goes directly to Majel submission. For use when SRA files have already been downloaded'
     printf '%s\n'     '  --majel-time=          sets --time= allocated to 2_sbatch_majel_submission.sh (default: --majel-time=04-00)'
     printf '%s\n'     '  --majel-ntasks=        sets --ntasks-per-node= for 2_sbatch_majel_submission.sh and number of cores used by Majel.py (default: --majel-ntasks=32)'
@@ -612,6 +631,9 @@ if [[ ! -z $SAMPLE_FILE ]]; then
         set_defaults
         get_arguments "$@"
         get_arguments "${CSV[@]:5}"
+
+	SAMPLE_NO=$(cat $SAMPLE_FILE | sed '/^\s*$/d' | wc -l)
+	[[ $SAMPLE_NO -ge $CONCURRENT_JOBS ]] || CONCURRENT_JOBS=$SAMPLE_NO
  
         #if the --run-list was not specified then grab the run files from the --sample-file table 
         if [[ -z $RUN_LIST ]]; then
@@ -625,8 +647,12 @@ if [[ ! -z $SAMPLE_FILE ]]; then
             SAMPLE_NAME=$(IFS=_ ; CELLS="${CSV[*]:0:3}"; echo "${CELLS^}" | sed 's/ [[:lower:]]/\U&/g' | tr -d ' ' | sed 's/_[[:lower:]]/\U&/g')
  
             if [[ -z $RUN_DIR ]]; then
-                SQL_QUERY="select experiment_accession from experiment where experiment_accession in (select experiment_accession from run where run_accession='${RUN_ARRAY[0]}')"
-                SAMPLE_NAME+="_$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "$SQL_QUERY")"
+                EXPERIMENT_ACCESSION=$(sqlite3 $SQLITE_DIR/SRAmetadb.sqlite "select experiment_accession from experiment where experiment_accession in (select experiment_accession from run where run_accession='${RUN_ARRAY[0]}')")
+		if [[ $EXPERIMENT_ACCESSION ]]; then
+                    SAMPLE_NAME+="_$EXPERIMENT_ACCESSION"
+                else
+		    SAMPLE_NAME+="_${RUN_ARRAY[0]}"
+                fi
             else
                 SAMPLE_NAME+="_${RUN_ARRAY[0]}"
             fi
