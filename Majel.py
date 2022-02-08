@@ -273,10 +273,7 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
     
     for x in range(4):
         trim_profile.append(trim_profile[0])
-        if trim_profile[x] != "0":
-            L_trim_lengths.append(L_trim_options[x] + trim_profile[x] + " ")
-        else:
-            L_trim_lengths.append("")
+        L_trim_lengths.append(L_trim_options[x] + trim_profile[x])
 
     trimPath = getFunctionPath("trim_galore")
     if options.is_paired_end == "True":
