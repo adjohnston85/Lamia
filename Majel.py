@@ -41,7 +41,7 @@ parser.add_argument("--sample_name", help='Sample name. Used for output file nam
 parser.add_argument("--threads", help="Speed up alignment and other processes by increasing number of threads. Defaults to 20 (this number is divided by 5 for Bismark, as 4 aligner threads uses ~20 cores and ~40GB of RAM)",
                           default=4)
 parser.add_argument("--trim_profile", help="Sets the profile for number of base pairs trimmed from 3' and 5' ends of sequence reads (post adapter trimming). Options are: bs-seq, em-seq, & no-trim (defaults to bs-seq)",
-                          default="bs-seq")
+                          default="swift")
 parser.add_argument("--pbat", action='store_true',
                           help="Specify when aligning pbat library")
 parser.add_argument("--non_directional", action='store_true',
@@ -261,26 +261,31 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
     
     if trim_profile[0] == "em-seq":
         trim_profile[0] = "8"
+    elif trim_profile[0] == "swift":
+        trim_profile[0] = "10,15,10,10"
     elif trim_profile[0] == "bs-seq":
         trim_profile[0] = "10"
     elif trim_profile[0] == "no-trim":
         trim_profile[0] = "0"
     else:
         try:
-            int(trim_profile[0])
+            [int(x) for x in trim_profile]
         except:
-            raise Exception("Invalid --trim_profile. Must be a single integer, a comma seperated list of 4 integers, or one of the following: em-seq, bs-seq, no-trim")
+            raise Exception("Invalid --trim_profile. Must be a single integer, a comma seperated list of 4 integers, or one of the following: em-seq, swift, bs-seq, no-trim")
     
     for x in range(4):
         trim_profile.append(trim_profile[0])
-        L_trim_lengths.append(L_trim_options[x] + trim_profile[x])
+        if trim_profile[x] != "0":
+            L_trim_lengths.append(L_trim_options[x] + trim_profile[x] + " ")
+        else:
+            L_trim_lengths.append("")
 
     trimPath = getFunctionPath("trim_galore")
     if options.is_paired_end == "True":
         if all([len(files) == 2 for files in input_files]):
             threads = int(options.threads) // 4 if int(options.threads) > 4 else 1
           
-            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores %s %s %s %s %s --paired %s %s' % tuple([trimPath] + [str(threads)] + L_trim_lengths + input_files[0]))
+            cmd=('%s --fastqc --fastqc_args "--noextract" --gzip --cores %s %s%s%s%s--paired %s %s' % tuple([trimPath] + [str(threads)] + L_trim_lengths + input_files[0]))
             exitcode, out, err = execute_cmd(cmd)
         else:
             raise Exception("Unpaired files in input.")
