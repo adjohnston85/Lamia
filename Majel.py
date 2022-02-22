@@ -12,6 +12,7 @@ import pandas as pd
 import sys
 from pathlib import Path
 import math
+from statistics import mean
 
 #define all paths to sofware (Popen will not use $PATH)
 def getFunctionPath(target):
@@ -40,8 +41,7 @@ parser.add_argument("--data_dir", help="Directory for input fastq/sra files",
 parser.add_argument("--sample_name", help='Sample name. Used for output file names and should match directory name. Will determine colouring of TDF track file and must conform to following convention "Tissue_SubTissue_HealthStatus_Identifier"')
 parser.add_argument("--threads", help="Speed up alignment and other processes by increasing number of threads. Defaults to 20 (this number is divided by 5 for Bismark, as 4 aligner threads uses ~20 cores and ~40GB of RAM)",
                           default=4)
-parser.add_argument("--trim_profile", help="Sets the profile for number of base pairs trimmed from 3' and 5' ends of sequence reads (post adapter trimming). Options are: bs-seq, em-seq, & no-trim (defaults to bs-seq)",
-                          default="swift")
+parser.add_argument("--trim_profile", help="Sets the profile for number of base pairs trimmed from 3' and 5' ends of sequence reads (post adapter trimming). Options are: swift, em-seq, & no-trim, a single integer, or a comma seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3')"
 parser.add_argument("--pbat", action='store_true',
                           help="Specify when aligning pbat library")
 parser.add_argument("--non_directional", action='store_true',
@@ -182,6 +182,37 @@ def getDirection():
         logger.log(MESSAGE,  timestamp('Aligning in PBAT mode'))
     return aligners.get(options.aligner)
 
+
+def conversion_estimator(bedgraph_name):
+    with open(bedgraph_name, 'r') as F_bedgraph:
+        D_ROI_conversion = {}
+        for i, line in enumerate(F_bedgraph):
+            if i == 0:
+                continue
+
+            L_columns = line.strip().split("\t")
+            chromo = L_columns[0]
+            meth = float(L_columns[4])
+            unmeth = float(L_columns[5])
+            conversion = meth/(meth + unmeth)
+            coverage = meth + unmeth
+            if chromo in D_ROI_conversion:
+                D_ROI_conversion[chromo]["conversion"].append(conversion)
+                D_ROI_conversion[chromo]["coverage"].append(coverage)
+            else:
+                D_ROI_conversion[chromo] = {"conversion":[conversion], "coverage":[coverage]}
+
+        L_values = []
+        L_chromo = []
+        for chromo in D_ROI_conversion:
+            conversion = str(round(100 - mean(D_ROI_conversion[chromo]["conversion"])*100,2)) + "%"
+            coverage = str(round(mean(D_ROI_conversion[chromo]["coverage"]),2))
+            L_values.extend([conversion, coverage])
+            L_chromo.extend([chromo + '_conv', chromo + '_cov'])
+
+    return L_values, L_chromo
+
+
 #Walt code to be fixed in the future
 #def align_walt(input_files, base_name, target_genome):
 #     logger.log(MESSAGE, timestamp('Unzipping %s and %s for WALT' % tuple(input_files[0])))
@@ -260,9 +291,9 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
     L_trim_options = ["--clip_R1 ", "--clip_R2 ", "--three_prime_clip_R1 ", "--three_prime_clip_R2 "]
     
     if trim_profile[0] == "em-seq":
-        trim_profile[0] = "8"
+        trim_profile = ["4","8","4","4"]
     elif trim_profile[0] == "swift":
-        trim_profile[0] = "10,15,10,10"
+        trim_profile = ["10","15","10","10"]
     elif trim_profile[0] == "bs-seq":
         trim_profile[0] = "10"
     elif trim_profile[0] == "no-trim":
@@ -365,7 +396,8 @@ def mDuplicates(input_file, output_file, logger, logger_mutex):
         os.mkdir("./tmp")
     picardPath = getFunctionPath("picard")
     samtoolsPath = getFunctionPath("samtools")
-    cmd="%s -Xms8g MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=true TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % (picardPath, input_file[0], output_file[0], options.sample_name)
+    cmd=("%s -Xms8g MarkDuplicates I=%s O=%s M=%s_picard_MarkDuplicates_metrics.test ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=true TAGGING_POLICY=All CREATE_INDEX=true TMP_DIR=./tmp" % 
+        (picardPath, input_file[0], output_file[0], options.sample_name))
     logger.log(MESSAGE,  timestamp(cmd))
     os.system(cmd)
     checkBam(options.sample_name + "_sd")
@@ -376,32 +408,57 @@ def mDuplicates(input_file, output_file, logger, logger_mutex):
     with logger_mutex:
         logger.log(MESSAGE,  timestamp("Picard Completed"))
 
-@transform(mDuplicates, formatter('.*_sd.bam$'), ['{basename[0]}_genomeCoverageBed.txt','{basename[0]}_coverage.txt'], logger, logger_mutex)
+@transform(mDuplicates, formatter('.*_sd.bam$'), ['{basename[0]}_genomeCoverageBed.txt','{basename[0]}_conversion_and_coverage.txt'], logger, logger_mutex)
 def calculateCoverage(input_file, output_file, logger, logger_mutex):
-     samtoolsPath = getFunctionPath("samtools")
-     covBedpath = getFunctionPath("genomeCoverageBed")
-     cmd = "%s view -b -F 0x400 %s | %s -ibam - -g %s/%s/%s.genome > %s" % (samtoolsPath, input_file[0], covBedpath, options.genome_path, options.genome, options.genome, output_file[0])     
-     os.system(cmd)
-     covFile = pd.read_table(output_file[0], header=None, names=['chr','depth','base_count','chr_size_bp','fraction'])
-     genomeCov = covFile[covFile['chr'] == 'genome']
-     averageCov = sum(genomeCov['depth'] * genomeCov['base_count'])/genomeCov.loc[genomeCov.index[0],'chr_size_bp']
-     pd.DataFrame(data={'sample_name':options.sample_name,'Genome':options.genome, 'Average_Coverage':averageCov}, index=['coveragedetails']).to_csv(path_or_buf=output_file[1], sep = '\t')
-     checkOutput(output_file, "calculateCoverage")
-     
-     with logger_mutex:
-          logger.log(MESSAGE, timestamp('Average genomic coverage = %sx' % averageCov))
+    samtoolsPath = getFunctionPath("samtools")
+    covBedpath = getFunctionPath("genomeCoverageBed")
+    cmd = "%s view -b -F 0x400 %s | %s -ibam - -g %s/%s/%s.genome > %s" % (samtoolsPath, input_file[0], covBedpath, options.genome_path, options.genome, options.genome, output_file[0])     
+    os.system(cmd)
+    covFile = pd.read_table(output_file[0], header=None, names=['chr','depth','base_count','chr_size_bp','fraction'])
+    genomeCov = covFile[covFile['chr'] == 'genome']
+    averageCov = sum(genomeCov['depth'] * genomeCov['base_count'])/genomeCov.loc[genomeCov.index[0],'chr_size_bp']
+    pd.DataFrame(data={'sample_name':options.sample_name,'Genome':options.genome, 'Average_Coverage':averageCov}, index=['coveragedetails']).to_csv(path_or_buf=output_file[1], sep = '\t')
 
-@transform(mDuplicates, regex(r".bam$"), ["_CpG.bedGraph",'_OB.svg','_OT.svg'], logger, logger_mutex)
+    bam_prefix = re.sub(pattern = '\.bam$', repl='', string = input_file[0])
+    L_contexts = ['CHH','CHG','CpG']
+    with open(bam_prefix + '_conversion_and_coverage.txt', 'a') as F_coverage:
+        F_coverage.write("\n")
+        for context in L_contexts:
+            L_stats = conversion_estimator(bam_prefix + '_ROI_Conversion_' + context + '.bedGraph')
+            if context == 'CHH':
+                F_coverage.write('\t' + '\t'.join(L_stats[1]) + '\n')
+            F_coverage.write(context + '\t' + '\t'.join(L_stats[0]) + '\n')
+
+    checkOutput(output_file, "calculateCoverage")
+    
+    with logger_mutex:
+        logger.log(MESSAGE, timestamp('Average genomic coverage = %sx' % averageCov))
+
+@transform(mDuplicates, regex(r".bam$"), ["_CpG.bedGraph",'_CHH_OT.svg','_CHH_OB.svg','_CHG_OT.svg','_CHG_OB.svg','_CpG_OT.svg','_CpG_OB.svg',
+                                          '_ROI_Conversion_CHH.bedGraph','_ROI_Conversion_CHG.bedGraph','_ROI_Conversion_CpG.bedGraph'], logger, logger_mutex)
 def call_meth(input_file, output_file, logger, logger_mutex):
-     methPath = getFunctionPath("MethylDackel")
-     bias_cmd=("%s mbias -@ %s %s/%s/%s.fa %s %s" % (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0], re.sub(pattern = '\.bam$', repl='',string = input_file[0])))
-     os.system(bias_cmd)
-     cmd=("%s extract -@ %s --mergeContext %s%s/%s.fa %s" % (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0]))
-     os.system(cmd)
-     checkOutput(output_file, "call_meth")
-     
-     with logger_mutex:
-          logger.log(MESSAGE,  timestamp("MethylDackel Completed"))
+    methPath = getFunctionPath("MethylDackel")
+
+    bam_prefix = re.sub(pattern = '\.bam$', repl='', string = input_file[0])
+
+    conv_cmd=("%s extract --CHH --CHG --minOppositeDepth 5 --maxVariantFrac 0.2 --opref %s -@ %s -l %s/%s/CHH_ROI.bed %s/%s/%s.fa %s" % 
+             (methPath, bam_prefix + '_ROI_Conversion', options.threads, options.genome_path, options.genome, options.genome_path, options.genome, options.genome, input_file[0]))
+    os.system(conv_cmd)
+
+    D_contexts = {'CHH':'--CHH --noCpG ', 'CHG':'--CHG --noCpG ', 'CpG':''}
+    for context in D_contexts:
+        bias_cmd=("%s mbias %s--txt -@ %s %s/%s/%s.fa %s %s" %
+                 (methPath, D_contexts[context], options.threads, options.genome_path, options.genome, options.genome, input_file[0], bam_prefix + '_' + context))
+        os.system(bias_cmd)
+    
+    cmd=("%s extract -@ %s --mergeContext %s%s/%s.fa %s" %
+        (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0]))
+    os.system(cmd)
+
+    checkOutput(output_file, "call_meth")
+    
+    with logger_mutex:
+        logger.log(MESSAGE,  timestamp("MethylDackel Completed"))
 
 @transform(call_meth, regex(r"_sd_CpG.bedGraph"), ["_PMD.bed", "_UMRLMR.bed", "_wPMD_UMRLMR.bed", "_sd_CpG.tdf"], logger, logger_mutex)
 def methylseekrAndTDF(input_file, output_file, logger, logger_mutex):
