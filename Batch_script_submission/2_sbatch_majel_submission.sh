@@ -22,7 +22,6 @@ module load methyldackel/0.6.1
 module load bismark/0.23.0
 
 HELP='false'
-FROM_SCRATCH='false'
 
 RSYNC_TIME='08:00:00'
 RSYNC_MEM='512mb'
@@ -84,8 +83,8 @@ while [ $# -gt 0 ]; do
           MAJEL_ARGS="${1#*=} "
       fi
       ;;
-    --from-scratch*)
-      FROM_SCRATCH="${1#*t}"
+    --no-rsync)
+      NO_RSYNC="true"
       ;;
     --help*)
       HELP="${1#*p}"
@@ -120,6 +119,7 @@ then
     printf '%s\n' '                         default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False"'
     printf '%s\n' '  --from-scratch         the Majel.py pipeline will NOT continue from where it left off but instead will start over, overwriting steps that might already have been completed'
+    printf '%s\n' '  --no-rsync             files will not be rsynced after 2_sbatch_majel_submission.sh completes'
     printf '\n'
     exit 1
 fi
@@ -146,18 +146,18 @@ TIME=$(date '+%B %d %T %Z %Y')
 printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
 eval $SUBMISSION
 
-if grep -q "Completed Task = 'methylseekrAndTDF'" slurm_majel_stdout.log
-then
-  SUBMISSION="$MAJEL_DIR/majel_cleanup.sh $SAMPLE_NAME &>> slurm_majel_stdout.log"
-  TIME=$(date '+%B %d %T %Z %Y')
-  printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
-  eval $SUBMISSION
-
-  SUBMISSION="${RSYNC_PREFIX}$SCRIPT_DIR/3_sbatch_io_SyncProcessedData.sh --sync-to=$SYNC_TO --sync-from=$PROJECT_DIR/$SAMPLE_NAME &>> slurm_majel_stdout.log"
-  TIME=$(date '+%B %d %T %Z %Y')
-  printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
-  eval $SUBMISSION
-
+if grep -q "Completed Task = 'methylseekrAndTDF'" slurm_majel_stdout.log; then
+    SUBMISSION="$MAJEL_DIR/majel_cleanup.sh $SAMPLE_NAME &>> slurm_majel_stdout.log"
+    TIME=$(date '+%B %d %T %Z %Y')
+    printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
+    eval $SUBMISSION
+  
+    if [[ -z $NO_RSYNC ]]; then
+        SUBMISSION="${RSYNC_PREFIX}$SCRIPT_DIR/3_sbatch_io_SyncProcessedData.sh --sync-to=$SYNC_TO --sync-from=$PROJECT_DIR/$SAMPLE_NAME &>> slurm_majel_stdout.log"
+        TIME=$(date '+%B %d %T %Z %Y')
+        printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
+        eval $SUBMISSION
+    fi
 else
-  printf '%s\n\n' "methylseekrAndTDF did not complete - Check for failed tasks" | tee -a $LOG_FILE
+    printf '%s\n\n' "methylseekrAndTDF did not complete - Check for failed tasks" | tee -a $LOG_FILE
 fi

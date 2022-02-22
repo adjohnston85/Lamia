@@ -64,8 +64,8 @@ print(paste("Running", bGraph))
 bGraph_name = gsub(".*/", "", bGraph)
 out_prefix = gsub("_sd_CpG.bedGraph", "", bGraph_name)
 #1st check the coverage, minimum needed is 10x
-covFile = gsub("_CpG.bedGraph", "_coverage.txt", bGraph)
-covDetails = read.delim(covFile, header = TRUE, stringsAsFactors = FALSE, row.names = 1)
+covFile = gsub("_CpG.bedGraph", "_conversion_and_coverage.txt", bGraph)
+covDetails = read.delim(covFile, header = TRUE, stringsAsFactors = FALSE, row.names = 1, nrows = 1)
 
 if(covDetails$Average_Coverage < 10){
   print("Inadequate Coverage for methylseekR - making placeholder files")
@@ -101,6 +101,7 @@ if(covDetails$Average_Coverage < 10){
 
   #methyldackel output is chr, start, end, % meth, M reads, U reads
   meth.df = fread(bGraph, data.table = FALSE, skip = 1)
+  meth.df <- meth.df[(!(meth.df$V1=="chrLambda") & !(meth.df$V1=="chrPUC19")),]
   print("Making Meth GRanges")
   meth.gr = makeGRangesFromDataFrame(df = meth.df, 
                                      seqnames.field = "V1", 

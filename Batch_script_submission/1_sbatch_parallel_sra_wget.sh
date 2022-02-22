@@ -12,7 +12,6 @@ module load aria2/1.35.0
 HELP='false'
 FROM_SCRATCH=''
 
-MAJEL_TIME="04-00"
 MAJEL_MEM="64gb"
 MAJEL_NTASKS='32'
 
@@ -96,6 +95,9 @@ while [ $# -gt 0 ]; do
     --majel-args=*)
       MAJEL_ARGS="${1#*=}"
       ;;
+    --no-rsync)
+      NO_RSYNC="--no-rsync "
+      ;;
     --help)
       unset HELP
       ;;
@@ -119,7 +121,7 @@ if [ -z $HELP ];then
     printf '%s\n' '                         Note: as per the example a list of SRAs must be contained within quotation marks'
     printf '\n'
     printf '%s\n' 'Optional arguments:'
-    printf '%s\n' '  --dl-attempts          sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
+    printf '%s\n' '  --dl-attempts=         sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
     printf '%s\n' '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
     printf '%s\n' '  --majel_time=          sets --time= allocated to sbatch_majel_submission_AJ.sh     (default: --majel-time=04-00)'
     printf '%s\n' '  --majel-ntasks=        sets --ntasks-per-node= for sbatch_majel_submission_AJ.sh   (default: --majel-ntasks=32)'
@@ -132,6 +134,7 @@ if [ -z $HELP ];then
     printf '%s\n' '  --majel-dir=           used to alter path to Majel.py (default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main)'
     printf '%s\n' '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False")'
     printf '%s\n' '                         Note: this list of additional arguments must be contained within quotation marks'
+    printf '%s\n' '  --no-rsync             files will not be rsynced after 2_sbatch_majel_submission.sh completes'
     printf '\n'
     exit 1
 fi
@@ -141,12 +144,6 @@ LOG_FILE=$PROJECT_DIR/$SAMPLE_NAME/1_sbatch_parallel_sra_wget.log
 
 check_argument "project-dir" $PROJECT_DIR
 check_argument "sample-name" $SAMPLE_NAME
-
-#check if this pipeline is being run on cluster with a slurm submission system, if so specifying an email is mandatory
-if hash slurm 2> /dev/null; then
-    check_argument "mail-user" $EMAIL
-    SUB_PREFIX="sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
-fi
 
 #remove extraneous quotation marks that can occur when using the --sample-file= option
 RUN_LIST=$(echo "$RUN_LIST" | tr -d '"')
@@ -219,13 +216,24 @@ if [[ $RETRY == 'true' ]]; then
     exit 1
 fi
 
+if [[ -z $MAJEL_TIME ]]; then
+    FILE_SIZE=$(find ./ -regextype posix-extended -regex ".*/*\.(fq|fastq|sra)\.?(gz)?" -print0 | du -L --files0-from=- -cm | grep total | cut -f1)
+    MAJEL_TIME="$(( (4 * $FILE_SIZE + 8605) * 15 / 100000)):00:00"
+fi
+
+#check if this pipeline is being run on cluster with a slurm submission system, if so specifying an email is mandatory
+if hash slurm 2> /dev/null; then
+    check_argument "mail-user" $EMAIL
+    SUB_PREFIX="sbatch --time=$MAJEL_TIME --ntasks-per-node=$MAJEL_NTASKS --mem=$MAJEL_MEM --job-name=MAJEL:${SAMPLE_NAME} --mail-user=$EMAIL "
+fi
+
 cd $PROJECT_DIR/$SAMPLE_NAME
 
 TIME=$(date '+%B %d %T %Z %Y')
 if [[ $DL_ONLY == "false" ]]; then
     SUBMISSION="${SUB_PREFIX}$SCRIPT_DIR/2_sbatch_majel_submission.sh --sample-name=$SAMPLE_NAME --project-dir=$PROJECT_DIR "
     SUBMISSION+="--rsync-time=$RSYNC_TIME --rsync-mem=$RSYNC_MEM --mail-user=$EMAIL --genome=$GENOME --genome-path=$GENOME_PATH "
-    SUBMISSION+="--majel-threads=$MAJEL_NTASKS --sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR --majel-args=\"${MAJEL_ARGS}\""
+    SUBMISSION+="--majel-threads=$MAJEL_NTASKS --sync-to=$SYNC_TO --majel-dir=$MAJEL_DIR $NO_RSYNC--majel-args=\"${MAJEL_ARGS}\""
 
     printf '%s\n\n' "$TIME> $SUBMISSION" | tee -a $LOG_FILE
     eval $SUBMISSION

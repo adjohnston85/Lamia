@@ -18,6 +18,7 @@ mv *trimming_report* ./stats/trim_galore/
 mv ${SAMPLE_NAME}*txt ./stats/
 mkdir ./stats/methyldackyl
 mv ${SAMPLE_NAME}*svg ./stats/methyldackyl/
+mv ${SAMPLE_NAME}_ROI_Conversion*.bedGraph ./stats/methyldackyl/
 mkdir ./stats/picard
 mv ${SAMPLE_NAME}*metrics.test ./stats/picard/
 mkdir QC
