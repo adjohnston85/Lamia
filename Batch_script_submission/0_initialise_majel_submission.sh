@@ -160,7 +160,7 @@ get_arguments() {
           MAJEL_ARGS="${1#*=}"
           ;;
         --trim-profile=*)
-          TRIM_PROFILE="--trim_profile ${1#*=}"
+          TRIM_PROFILE="--trim_profile ${1#*=} "
           ;;
         --skip-prompt)
           SKIP_PROMPT='true'
@@ -570,7 +570,7 @@ set_defaults
 get_arguments "$@"
 
 if [ -z $HELP ]; then
-    printf '\n%s\n'   'usage: 0_initialise_majel_submission.sh [--help] [--job-dir=<path>] [--sample-name=<name>] [--mail-user=<email>]'
+    printf '\n%s\n'   'usage: 0_initialise_majel_submission.sh [--help] [--trim-profile=<profile>] [--job-dir=<path>] [--sample-name=<name>] [--mail-user=<email>]'
     printf '%s\n'     '                                        [--project-name=<name>] [--run-list=<list of run accessions (SRAs) OR fastq file prefixes>]'
     printf '%s\n'     '                                        [--run-dir=<path>] [--whole-experiment] [--experiment-accession] [--sample-file=<file>]'
     printf '%s\n'     '                                        [--concurrent-jobs] [--dl-attempts=<integer>]  [--dl-only] [--skip-dl] [--majel-time=<time>]'
