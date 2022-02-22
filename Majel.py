@@ -35,19 +35,20 @@ parser = cmdline.get_argparse(description="""
 #parser.add_argument("--aligner", help="Select prefered aligner [bismark, bwameth]. Defaults to bismark",
 #                          default="bismark")
 parser.add_argument("--genome", help="Genome for alignment. Must be a directory in your --genome_path. Defaults to hg38 (hg38)",
-                          default="hg38")
+                    default="hg38")
 parser.add_argument("--data_dir", help="Directory for input fastq/sra files",
                     default = "./data/")
 parser.add_argument("--sample_name", help='Sample name. Used for output file names and should match directory name. Will determine colouring of TDF track file and must conform to following convention "Tissue_SubTissue_HealthStatus_Identifier"')
 parser.add_argument("--threads", help="Speed up alignment and other processes by increasing number of threads. Defaults to 20 (this number is divided by 5 for Bismark, as 4 aligner threads uses ~20 cores and ~40GB of RAM)",
-                          default=4)
-parser.add_argument("--trim_profile", help="Sets the profile for number of base pairs trimmed from 3' and 5' ends of sequence reads (post adapter trimming). Options are: swift, em-seq, & no-trim, a single integer, or a comma seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3')"
+                    default=4)
+parser.add_argument("--trim_profile",
+                    help="Sets the profile for number of base pairs trimmed from 3' and 5' ends of sequence reads (post adapter trimming). Options are: swift, em-seq, & no-trim, a single integer, or a comma seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3')")
 parser.add_argument("--pbat", action='store_true',
-                          help="Specify when aligning pbat library")
+                    help="Specify when aligning pbat library")
 parser.add_argument("--non_directional", action='store_true',
-                          help="Specify to instruct Bismark to use all four alignment outputs")
+                    help="Specify to instruct Bismark to use all four alignment outputs")
 parser.add_argument("--is_paired_end",help = "Is the libarary paired end (defaults to True)",
-                          default="True")
+                    default="True")
 parser.add_argument("--genome_path",help = "Path to genome folder, must contain a --genome directory",
                     default="/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/")
 options = parser.parse_args()
