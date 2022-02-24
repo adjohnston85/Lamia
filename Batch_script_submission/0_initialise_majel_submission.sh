@@ -5,6 +5,7 @@
 HELP='false'
 SKIP_PROMPT='false'
 JOB_DIR=$PWD
+TRANSFER_CHECK='false'
 
 #function to set or reset default values
 set_defaults() {
@@ -17,7 +18,7 @@ set_defaults() {
     SQLITE_DIR='/datasets/work/hb-meth-atlas/work/Data/level_2'
 
     GENOME='hg38'
-    GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
+    GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes'
 
     if hash slurm 2> /dev/null; then
         SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
@@ -187,9 +188,30 @@ set_fixes() {
 }
 
 
+#Check if reference genome files for alignement exist in the job directory, if not transfer them
+transfer_ref_genome() {
+
+    REF_LOG=$JOB_DIR/refgenome_rsync.out
+    THREADS=8
+    if hash slurm 2> /dev/null && [[ $NO_GENOME_TRANSFER == 'false' ]]; then
+        > $REF_LOG
+        sbatch --ntasks-per-node=$THREADS --time=00:20:00 --output=$REF_LOG --mail-type=ALL --mail-user=$EMAIL --wrap "module load rclone/1.55.1 ; rclone copy $GENOME_PATH/$GENOME/ $JOB_DIR/$GENOME/ --progress --multi-thread-streams=$THREADS ; echo 'transfer complete' >> $REF_LOG"
+        echo 'transferring genome folder to --job-dir='
+        while [[ $TRANSFER_CHECK == 'false' ]]; do
+            if [[ ! -z $(grep "transfer complete" $REF_LOG) ]]; then
+                TRANSFER_CHECK='true'
+                sleep 10s
+            fi
+        done
+    fi
+}
+
+
 job_submission() {
  
-    [[ $NO_GENOME_TRANSFER == 'true' ]] || GENOME_PATH="$JOB_DIR/"
+    [[ $NO_GENOME_TRANSFER == 'true' ]] || GENOME_PATH="$JOB_DIR"
+    SAMPLE_NAME=$(echo $SAMPLE_NAME | tr -d ' ')
+    PROJECT_NAME=$(echo $PROJECT_NAME | tr -d ' ')
     PROJECT_DIR="$JOB_DIR/$PROJECT_NAME"
 
     if [[ ! -z $RSYNC_ONLY ]]; then
@@ -369,7 +391,7 @@ job_submission() {
         if [[ -z $DL_ONLY ]] && [[ -z $RSYNC_ONLY ]]; then
             printf '%s\n\n' "These parameters will result in the following Majel.py job:" | tee -a $LOG_FILE
             printf '%s'     "python3 $MAJEL_DIR/Majel.py --data_dir $PROJECT_DIR/$SAMPLE_NAME/data/ --sample_name $SAMPLE_NAME " | tee -a $LOG_FILE
-            printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --threads $MAJEL_NTASKS ${MAJEL_ARGS}" | tee -a $LOG_FILE
+            printf '%s'     "--genome $GENOME --genome_path $GENOME_PATH --threads $MAJEL_NTASKS $TRIM_PROFILE$MAJEL_ARGS" | tee -a $LOG_FILE
             printf '%s\n\n' "-v 3 -L $PROJECT_DIR/$SAMPLE_NAME/${SAMPLE_NAME}_majel.log &> slurm_majel_stdout.log" | tee -a $LOG_FILE
         fi
     
@@ -382,8 +404,12 @@ job_submission() {
   
     #confirmation of user input
     if [[ $REPLY =~ ^[Yy]$ ]] || [[ $SKIP_PROMPT != 'false' ]] && [[ -z $FAIL ]]; then
-        printf '%s\n\n' "Job was submitted on $(date '+%B %d %Y at %T %Z')" | tee -a $LOG_FILE
+        if [[ $NO_GENOME_TRANSFER == 'false' ]] && [[ $TRANSFER_CHECK == 'false' ]]; then
+            transfer_ref_genome
+        fi 
         
+        printf '%s\n\n' "Job was submitted on $(date '+%B %d %Y at %T %Z')" | tee -a $LOG_FILE
+         
         #submit job
         eval "$SUBMISSION" | tee -a $LOG_FILE
     else
@@ -570,6 +596,7 @@ set_defaults
 get_arguments "$@"
 
 if [ -z $HELP ]; then
+    set_defaults
     printf '\n%s\n'   'usage: 0_initialise_majel_submission.sh [--help] [--trim-profile=<profile>] [--job-dir=<path>] [--sample-name=<name>] [--mail-user=<email>]'
     printf '%s\n'     '                                        [--project-name=<name>] [--run-list=<list of run accessions (SRAs) OR fastq file prefixes>]'
     printf '%s\n'     '                                        [--run-dir=<path>] [--whole-experiment] [--experiment-accession] [--sample-file=<file>]'
@@ -582,7 +609,7 @@ if [ -z $HELP ]; then
     printf '%s\n'     '  --help                 show this help message and exit'
     printf '%s\n'     "  --trim-profile=        Sets the profile for number of base pairs trimmed from 5'and 3' ends of sequence reads (post adapter trimming)"
     printf '%s\n'     "                         Options are: swift, em-seq, & no-trim, a single integer to cut from all ends, or a comma seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3')"
-    printf '%s\n'     '  --job-dir=             sets path to the job directory where the project and sample directories will reside, e.g. --job-dir=/scratch1/usr001 (default: current working directory)'
+    printf '%s\n'     "  --job-dir=             sets path to the job directory where the project and sample directories will reside, e.g. --job-dir=/scratch1/usr001 (default: your current working directory)"
     printf '%s\n'     '  --sample-name=         sets name of the sample to run through Majel.py pipeline (e.g. --sample-name=Tissue_Subtissue_CancerType_SampleInfo_SAMN12345678)'
     printf '%s\n'     '  --mail-user=           sets email for SLURM notifications'
     printf '%s\n'     '  --project-name=        sets name of the project. This will be used to create a project directory (e.g. --project-name=PRJN12334)'
@@ -603,23 +630,23 @@ if [ -z $HELP ]; then
     printf '%s\n'     '                               any arguments declared in this file will override those declared globally'
     printf '%s\n'     '                               accessions or file prefixes specified in Column 4 must be sperated by spaces or semicolons'
     printf '%s\n\n'   '                               columns 6 and above are used to place arguments that apply specifically to the sample job within the row'
-    printf '%s\n'     '  --concurrent-jobs      if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted from the <sample-file> at any one time'
-    printf '%s\n'     '  --dl-attempts=         sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=5)'
+    printf '%s\n'     "  --concurrent-jobs=     if -sample-file= is delcared, this is the maximum number of Majel.py jobs submitted from the <sample-file> at any one time (default: --concurrent-jobs=$CONCURRENT_JOBS)"
+    printf '%s\n'     "  --dl-attempts=         sets the number of failed attempts to download an SRA file before the pipeline exits on an error (default: -dl-attempts=$DL_ATTEMPTS)"
     printf '%s\n'     '                         e.g. if --dl-attempts=1 the pipeline will not reattempt failed SRA downloads'
     printf '%s\n'     '  --dl-only              downloads SRA files but skips subsequent steps including running through Majel.py'
     printf '%s\n'     '  --rsync-only           jumps to final rsync step enacted by 3_sbatch_io_SyncProcessedData.sh'
     printf '%s\n'     '  --no-rsync             files will not be rsynced after 2_sbatch_majel_submission.sh completes'
     printf '%s\n'     '  --skip-dl              skips the SRA download step and goes directly to Majel submission. For use when SRA files have already been downloaded'
     printf '%s\n'     '  --majel-time=          sets --time= allocated to 2_sbatch_majel_submission.sh (default: --majel-time= is set based on size of seqence files in data/ directory)'
-    printf '%s\n'     '  --majel-ntasks=        sets --ntasks-per-node= for 2_sbatch_majel_submission.sh and number of cores used by Majel.py (default: --majel-ntasks=32)'
-    printf '%s\n'     '  --majel-mem=           sets --mem= allocated to 2_sbatch_majel_submission.sh (default: --majel-mem=64gb'
+    printf '%s\n'     "  --majel-ntasks=        sets --ntasks-per-node= for 2_sbatch_majel_submission.sh and number of cores used by Majel.py (default: --majel-ntasks=$MAJEL_NTASKS)"
+    printf '%s\n'     "  --majel-mem=           sets --mem= allocated to 2_sbatch_majel_submission.sh (default: --majel-mem=$MAJEL_MEM"
     printf '%s\n'     '                         Note: if only one of--majel-mem= or --majel-ntasks= is set, the other will automatically adjust by a factor of 2 (i.e. memory [gb] is set to twice the ntasks [cores]'
-    printf '%s\n'     '  --rsync-time=          sets time allocated to 3_sbatch_io_SyncProcessedData.sh (default: --rsync-time=08:00:00)'
-    printf '%s\n'     '  --rsync-mem=           sets memory allocated to 3_sbatch_io_SyncProcessedData.sh (default: --rsync-mem=512mb'
-    printf '%s\n'     '  --sync-to=             sets path to directory being synced to (Default: --sync-to=/datasets/work/hb-meth-atlas/work/Data/level_2/public)'
-    printf '%s\n'     '  --genome=              used to alter --genome argument for Majel.py (default: --majel-genome=hg38)'
-    printf '%s\n'     '  --genome-path=         used to alter --genome_path argument for Majel.py (default: --majel-genome-path=/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/)'
-    printf '%s\n'     '  --majel-dir=           used to alter path to Majel.py (default: /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main)'
+    printf '%s\n'     "  --rsync-time=          sets time allocated to 3_sbatch_io_SyncProcessedData.sh (default: --rsync-time=$RSYNC_TIME)"
+    printf '%s\n'     "  --rsync-mem=           sets memory allocated to 3_sbatch_io_SyncProcessedData.sh (default: --rsync-mem=$RSYNC_MEM"
+    printf '%s\n'     "  --sync-to=             sets path to directory being synced to (Default: --sync-to=$SYNC_TO)"
+    printf '%s\n'     "  --genome=              used to alter --genome argument for Majel.py (default: --majel-genome=$GENOME)"
+    printf '%s\n'     "  --genome-path=         used to alter --genome_path argument for Majel.py (default: --majel-genome-path=$GENOME_PATH)"
+    printf '%s\n'     "  --majel-dir=           used to alter path to Majel.py (default: $MAJEL_DIR)"
     printf '%s\n'     '  --majel-args=          used to add additional arguments to Majel.py (e.g. --majel-args="--pbat --is_paired_end False")'
     printf '%s\n'     '                         Note: this list of additional arguments must be contained within quotation marks'
     printf '%s\n'     '  --sqlite-dir=          directory containing SRAmetadb.sqlite'
@@ -628,24 +655,6 @@ if [ -z $HELP ]; then
     printf '\n'
     exit 1
 fi
-
-
-#Check if reference genome files for alignement exist in the job directory, if not transfer them
-REF_LOG=$JOB_DIR/refgenome_rsync.out
-THREADS=8
-if hash slurm 2> /dev/null && [[ $NO_GENOME_TRANSFER == 'false' ]]; then
-    > $REF_LOG
-    sbatch --ntasks-per-node=$THREADS --time=00:20:00 --output=$REF_LOG --mail-type=ALL --mail-user=$EMAIL --wrap "module load rclone/1.55.1 ; rclone copy $GENOME_PATH/$GENOME/ $JOB_DIR/$GENOME/ --progress --multi-thread-streams=$THREADS ; echo 'transfer complete' >> $REF_LOG"
-    TRANSFER='false'
-    echo 'transferring genome folder to --job-dir='
-    while [[ $TRANSFER == 'false' ]]; do
-        if [[ ! -z $(grep "transfer complete" $REF_LOG) ]]; then
-            TRANSFER='true'
-            sleep 10s
-        fi
-    done
-fi
-
 
 #check if SAMPLE_FILE was declared and if so run through this file in a job submission loop, 
 #pauses when maximum number of concurrent jobs is reached and waits for a job to finished before submitting another
@@ -710,7 +719,7 @@ if [[ ! -z $SAMPLE_FILE ]]; then
                 fi
             fi
         fi
- 
+
         job_submission
  
         if [[ ${#SAMPLE_ARRAY[@]} -ge $CONCURRENT_JOBS ]]; then
