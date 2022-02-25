@@ -449,7 +449,7 @@ def call_meth(input_file, output_file, logger, logger_mutex):
                  (methPath, D_contexts[context], options.threads, options.genome_path, options.genome, options.genome, input_file[0], bam_prefix + '_' + context))
         os.system(bias_cmd)
     
-    cmd=("%s extract -@ %s --mergeContext %s%s/%s.fa %s" %
+    cmd=("%s extract -@ %s --mergeContext %s/%s/%s.fa %s" %
         (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0]))
     os.system(cmd)
 
