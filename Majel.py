@@ -41,8 +41,7 @@ parser.add_argument("--data_dir", help="Directory for input fastq/sra files",
 parser.add_argument("--sample_name", help='Sample name. Used for output file names and should match directory name. Will determine colouring of TDF track file and must conform to following convention "Tissue_SubTissue_HealthStatus_Identifier"')
 parser.add_argument("--threads", help="Speed up alignment and other processes by increasing number of threads. Defaults to 20 (this number is divided by 5 for Bismark, as 4 aligner threads uses ~20 cores and ~40GB of RAM)",
                     default=4)
-parser.add_argument("--trim_profile",
-                    help="Sets the profile for number of base pairs trimmed from 3' and 5' ends of sequence reads (post adapter trimming). Options are: swift, em-seq, & no-trim, a single integer, or a comma seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3')")
+parser.add_argument("--trim_profile", help="Sets the profile for number of base pairs trimmed from 5' and 3' ends of sequence reads (post adapter trimming). Options are: swift, em-seq, & no-trim; a single integer to trim from all ends; or a comma seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3')")
 parser.add_argument("--pbat", action='store_true',
                     help="Specify when aligning pbat library")
 parser.add_argument("--non_directional", action='store_true',
@@ -50,7 +49,7 @@ parser.add_argument("--non_directional", action='store_true',
 parser.add_argument("--is_paired_end",help = "Is the libarary paired end (defaults to True)",
                     default="True")
 parser.add_argument("--genome_path",help = "Path to genome folder, must contain a --genome directory",
-                    default="/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/")
+                    default="/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes")
 options = parser.parse_args()
 
 # standard python logger which can be synchronised across concurrent Ruffus tasks
@@ -295,15 +294,13 @@ def trim_fastq(input_files, output_paired_files, logger, logger_mutex):
         trim_profile = ["4","8","4","4"]
     elif trim_profile[0] == "swift":
         trim_profile = ["10","15","10","10"]
-    elif trim_profile[0] == "bs-seq":
-        trim_profile[0] = "10"
     elif trim_profile[0] == "no-trim":
         trim_profile[0] = "0"
     else:
         try:
             [int(x) for x in trim_profile]
         except:
-            raise Exception("Invalid --trim_profile. Must be a single integer, a comma seperated list of 4 integers, or one of the following: em-seq, swift, bs-seq, no-trim")
+            raise Exception("Invalid --trim_profile. Must be a single integer, a comma seperated list of 4 integers, or one of the following: em-seq, swift, no-trim")
     
     for x in range(4):
         trim_profile.append(trim_profile[0])
@@ -452,7 +449,7 @@ def call_meth(input_file, output_file, logger, logger_mutex):
                  (methPath, D_contexts[context], options.threads, options.genome_path, options.genome, options.genome, input_file[0], bam_prefix + '_' + context))
         os.system(bias_cmd)
     
-    cmd=("%s extract -@ %s --mergeContext %s%s/%s.fa %s" %
+    cmd=("%s extract -@ %s --mergeContext %s/%s/%s.fa %s" %
         (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0]))
     os.system(cmd)
 
