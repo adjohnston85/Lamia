@@ -6,7 +6,7 @@
 #SBATCH --mail-type=ALL 
 
 module load amazon-corretto/16.0.0.36.1
-module load igvtools/2.11.3
+module load igvtools/2.11.9
 module load picard/2.25.5
 module load bowtie/2.4.4
 module load fastqc/0.11.9
@@ -28,7 +28,7 @@ RSYNC_MEM='512mb'
 SYNC_TO='/datasets/work/hb-meth-atlas/work/Data/level_2/public'
 
 GENOME='hg38'
-GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes/'
+GENOME_PATH='/datasets/work/hb-meth-atlas/work/pipeline_data/Genomes'
 MAJEL_THREADS=32
 
 SCRIPT_DIR="/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/Batch_script_submission"
