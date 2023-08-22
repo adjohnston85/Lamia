@@ -1,0 +1,5 @@
+name: rclone
+channels:
+  - conda-forge
+dependencies:
+  - rclone=1.62.2=h519d9b9_0

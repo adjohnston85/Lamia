@@ -1,0 +1,4 @@
+sample_name	data_dir	file_prefixes
+blood_blood_healthy_100meth	/datasets/work/hb-custom-epigenetics/work/users/joh592/andrew_temp/230411_MN00524_0055_A000H5KL2M/Data/Intensities/BaseCalls	100_perc_meth
+blood_blood_healthy_50meth	/datasets/work/hb-custom-epigenetics/work/users/joh592/andrew_temp/230411_MN00524_0055_A000H5KL2M/Data/Intensities/BaseCalls	50_perc_meth
+blood_blood_healthy_0meth	/datasets/work/hb-custom-epigenetics/work/users/joh592/andrew_temp/230411_MN00524_0055_A000H5KL2M/Data/Intensities/BaseCalls	0_perc_meth

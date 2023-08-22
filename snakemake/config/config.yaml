@@ -1,0 +1,51 @@
+# genome_dir:       Path to genome folder
+genome_dir: /datasets/work/hb-meth-atlas/work/pipeline_data/Genomes
+
+# genome:           Genome for alignment. Must be the name of a directory in your genome_dir
+genome: hg38
+
+# non_directional:  Specify to instruct Bismark to use all four alignment outputs
+non_directional: false
+
+# umi_loc:          Specify the location of UMI, can be (index1/index2/read1/read2/per_index/per_read
+umi_loc: per_read
+
+# umi_prefix:       The prefix for UMI, if it has one
+umi_prefix: UMI
+
+cleanup: false
+
+rsync: None
+
+email: username@email.com
+
+account: O2D-number
+
+library_type: "bs-seq"
+
+latency-wait: 60
+
+conda_prefix: "/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/lamia/snakemake/conda/mambaforge/envs"
+
+# run_file:         Contains sample name, associated sequence files and parameters specific to each sample
+
+# data_dir:         Directory for input fastq/sra files
+
+# file_prefixes:    List of fastq/sra file names or file name prefixes for processing in data_dir
+#                   If not specified all fastq and sra files in data_dir will be processed
+#                   DO NOT use if downloading SRA files specified in file_prefixes
+
+# sample_name:      Used for output file names and directories.
+#                   Will determine colouring of TDF track file
+#                   Must conform to following convention "Tissue_SubTissue_HealthStatus_Identifier"
+
+# trim_profile:     Sets the profile for number of base pairs trimmed from 5' and 3' ends of sequence reads
+#                   (post adapter trimming)
+#                   Options are:
+#                       - swift, emseq, & notrim
+#                       - a single integer to trim from all ends
+#                       - a comma seperated list of 4 integers (R1 5', R1 3', R2 5', R2 3')
+
+# roi_bed:          Path to BED file containing regions of interest (ROI) for analysis - e.g. for capture-seq
+
+# non_directional:  Specify to instruct Bismark to use all four alignment outputs
