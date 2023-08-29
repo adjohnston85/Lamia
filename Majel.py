@@ -406,67 +406,90 @@ def mDuplicates(input_file, output_file, logger, logger_mutex):
     with logger_mutex:
         logger.log(MESSAGE,  timestamp("Picard Completed"))
 
-@transform(mDuplicates, formatter('.*_sd.bam$'), ['{basename[0]}_genomeCoverageBed.txt','{basename[0]}_conversion_and_coverage.txt'], logger, logger_mutex)
-def calculateCoverage(input_file, output_file, logger, logger_mutex):
-    samtoolsPath = getFunctionPath("samtools")
-    covBedpath = getFunctionPath("genomeCoverageBed")
-    cmd = "%s view -b -F 0x400 %s | %s -ibam - -g %s/%s/%s.genome > %s" % (samtoolsPath, input_file[0], covBedpath, options.genome_path, options.genome, options.genome, output_file[0])     
-    os.system(cmd)
-    covFile = pd.read_table(output_file[0], header=None, names=['chr','depth','base_count','chr_size_bp','fraction'])
-    genomeCov = covFile[covFile['chr'] == 'genome']
-    averageCov = sum(genomeCov['depth'] * genomeCov['base_count'])/genomeCov.loc[genomeCov.index[0],'chr_size_bp']
-    pd.DataFrame(data={'sample_name':options.sample_name,'Genome':options.genome, 'Average_Coverage':averageCov}, index=['coveragedetails']).to_csv(path_or_buf=output_file[1], sep = '\t')
-
-    bam_prefix = re.sub(pattern = '\.bam$', repl='', string = input_file[0])
-    L_contexts = ['CHH','CHG','CpG']
-    with open(bam_prefix + '_conversion_and_coverage.txt', 'a') as F_coverage:
-        F_coverage.write("\n")
-        for context in L_contexts:
-            L_stats = conversion_estimator(bam_prefix + '_ROI_Conversion_' + context + '.bedGraph')
-            if context == 'CHH':
-                F_coverage.write('\t' + '\t'.join(L_stats[1]) + '\n')
-            F_coverage.write(context + '\t' + '\t'.join(L_stats[0]) + '\n')
-
-    checkOutput(output_file, "calculateCoverage")
-    
-    with logger_mutex:
-        logger.log(MESSAGE, timestamp('Average genomic coverage = %sx' % averageCov))
-
-@transform(mDuplicates, regex(r".bam$"), ["_CpG.bedGraph",'_CHH_OT.svg','_CHH_OB.svg','_CHG_OT.svg','_CHG_OB.svg','_CpG_OT.svg','_CpG_OB.svg',
-                                          '_ROI_Conversion_CHH.bedGraph','_ROI_Conversion_CHG.bedGraph','_ROI_Conversion_CpG.bedGraph'], logger, logger_mutex)
+@transform(mDuplicates, regex(r"_sd.bam$"), ['_sd_CpG.bedGraph','_CHH_OT.svg','_CHH_OB.svg','_CHG_OT.svg','_CHG_OB.svg','_CpG_OT.svg','_CpG_OB.svg',
+                                                 '_ROI_Conversion_CHH.bedGraph','_ROI_Conversion_CHG.bedGraph','_ROI_Conversion_CpG.bedGraph'], logger, logger_mutex)
 def call_meth(input_file, output_file, logger, logger_mutex):
     methPath = getFunctionPath("MethylDackel")
 
-    bam_prefix = re.sub(pattern = '\.bam$', repl='', string = input_file[0])
+    bam_prefix = re.sub(pattern = '_sd.bam$', repl='', string = input_file[0])
 
-    conv_cmd=("%s extract --CHH --CHG --minOppositeDepth 5 --maxVariantFrac 0.2 --opref %s -@ %s -l %s/%s/CHH_ROI.bed %s/%s/%s.fa %s" % 
-             (methPath, bam_prefix + '_ROI_Conversion', options.threads, options.genome_path, options.genome, options.genome_path, options.genome, options.genome, input_file[0]))
+    if options.roi_bed != "NA":
+        ROI_path = options.roi_bed
+    else:
+        ROI_path = options.genome_path + "/" + options.genome + "/" + CHH_ROI.bed
+
+    conv_cmd=("%s extract --CHH --CHG --minOppositeDepth 5 --maxVariantFrac 0.2 --opref %s -@ %s -l %s %s/%s/%s.fa %s" %
+             (methPath, bam_prefix + '_ROI_Conversion', options.threads, ROI_path, options.genome_path, options.genome, options.genome, input_file[0]))
+    logger.log(MESSAGE,  timestamp("ROI conversion command - '%s'" % conv_cmd))
     os.system(conv_cmd)
 
     D_contexts = {'CHH':'--CHH --noCpG ', 'CHG':'--CHG --noCpG ', 'CpG':''}
     for context in D_contexts:
         bias_cmd=("%s mbias %s--txt -@ %s %s/%s/%s.fa %s %s" %
                  (methPath, D_contexts[context], options.threads, options.genome_path, options.genome, options.genome, input_file[0], bam_prefix + '_' + context))
+        logger.log(MESSAGE,  timestamp("mbias command - '%s'" % bias_cmd))
         os.system(bias_cmd)
-    
+
     cmd=("%s extract -@ %s --mergeContext %s/%s/%s.fa %s" %
         (methPath, options.threads, options.genome_path, options.genome, options.genome, input_file[0]))
+    logger.log(MESSAGE,  timestamp("Call CpG methylation - '%s'" % cmd))
     os.system(cmd)
 
     checkOutput(output_file, "call_meth")
-    
-    with logger_mutex:
-        logger.log(MESSAGE,  timestamp("MethylDackel Completed"))
 
-@transform(call_meth, regex(r"_sd_CpG.bedGraph"), ["_PMD.bed", "_UMRLMR.bed", "_wPMD_UMRLMR.bed", "_sd_CpG.tdf"], logger, logger_mutex)
-def methylseekrAndTDF(input_file, output_file, logger, logger_mutex):
-     threads = int(options.threads) // 8 if int(options.threads) > 8 else 1 
-     Rscript_cmd = "Rscript %s/Rscripts/CallMethylseekrRegions_and_convertMethCallsToTdf.R -g %s -i %s -t %s/data/TissueToEmbryoMap.csv -e %s -p %s" % (pipeline_path, options.genome, input_file[0], pipeline_path, options.genome_path, str(threads))
-     print(Rscript_cmd)
-     os.system(Rscript_cmd)
-     checkOutput(output_file, "methylseekrAndTDF")
-     
-     with logger_mutex:
-          logger.log(MESSAGE,  timestamp("MethylSeekR and toTDF Completed"))
+    with logger_mutex:
+        logger.log(MESSAGE,  timestamp("MethylDackel completed"))
+
+
+@transform(call_meth, regex(r"_sd_CpG.bedGraph$"), ['_genomeCoverageBed.txt','_sd_conversion_and_coverage.txt'], logger, logger_mutex)
+
+def calculate_coverage_stats(input_file, output_files, logger, logger_mutex):
+    samtoolsPath = getFunctionPath("samtools")
+    bedtoolsPath = getFunctionPath("bedtools")
+
+    input_file[0] = re.sub(pattern = '_CpG.bedGraph$', repl='.bam', string = input_file[0])
+
+    if options.roi_bed != "NA":
+        cmd=("%s view -h -b -F 0x400 %s | %s intersect -abam stdin -b %s | %s genomecov -ibam - -g %s/%s/%s.genome > %s" %
+            (samtoolsPath, input_file[0], bedtoolsPath, options.roi_bed, bedtoolsPath, options.genome_path, options.genome, options.genome, output_files[0]))
+    else:
+        cmd=("%s view -h -b -F 0x400 %s | %s genomecov -ibam - -g %s/%s/%s.genome > %s" %
+            (samtoolsPath, input_file[0], bedtoolsPath, options.genome_path, options.genome, options.genome, output_files[0]))
+    logger.log(MESSAGE,  timestamp("Genome Coverage Command - '%s'" % cmd))
+    os.system(cmd)
+
+    covFile = pd.read_table(output_files[0], header=None, names=['chr','depth','base_count','chr_size_bp','fraction'])
+    genomeCov = covFile[covFile['chr'] == 'genome']
+    averageCov = sum(genomeCov['depth'] * genomeCov['base_count'])/genomeCov.loc[genomeCov.index[0],'chr_size_bp']
+    pd.DataFrame(data={'sample_name':options.sample_name,'Genome':options.genome, 'Average_Coverage':averageCov},
+                 index=['coveragedetails']).to_csv(path_or_buf=output_files[1], sep = '\t')
+
+    L_contexts = ['CHH','CHG','CpG']
+    with open(output_files[1], 'a') as F_coverage:
+        F_coverage.write("\n")
+        for context in L_contexts:
+            L_stats = conversion_estimator(re.sub(pattern = '_sd.bam$', repl='', string = input_file[0]) + '_ROI_Conversion_' + context + '.bedGraph')
+            if context == 'CHH':
+                F_coverage.write('\t' + '\t'.join(L_stats[1]) + '\n')
+            F_coverage.write(context + '\t' + '\t'.join(L_stats[0]) + '\n')
+
+    checkOutput(output_files, "calculate_coverage_stats")
+
+    with logger_mutex:
+        logger.log(MESSAGE, timestamp('Average genomic coverage = %sx' % averageCov))
+
+
+@transform(calculate_coverage_stats, regex(r"_sd_conversion_and_coverage.txt$"), ["_PMD.bed", "_UMRLMR.bed", "_wPMD_UMRLMR.bed", "_CpG.tdf"], logger, logger_mutex)
+
+def methylseekr_and_TDF(input_file, output_files, logger, logger_mutex):
+    threads = int(options.threads) // 8 if int(options.threads) > 8 else 1
+    Rscript_cmd = ("Rscript %s/Rscripts/CallMethylseekrRegions_and_convertMethCallsToTdf.R -g %s -i %s -t %s/data/TissueToEmbryoMap.csv -e %s -p %s" %
+                  (pipeline_path, options.genome, input_file[0], pipeline_path, options.genome_path, str(threads)))
+    logger.log(MESSAGE,  timestamp("methylseekr_and_TDF command - '%s'" % Rscript_cmd))
+    os.system(Rscript_cmd)
+    checkOutput(output_files, "methylseekr_and_TDF")
+
+    with logger_mutex:
+        logger.log(MESSAGE,  timestamp("MethylSeekR and toTDF Completed"))
 
 cmdline.run(options)
