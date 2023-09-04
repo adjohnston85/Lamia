@@ -21,6 +21,8 @@ rule bismark_align:
     log:
         # Log file to capture the stdout and stderr
         "{output_path}/{sample}/logs/{sample}_bismark_align.log",
+    conda:
+        "../envs/bismark.yaml",
     threads: lambda wcs: get_cpus(16,64)
     resources:
         # Resource constraints, dynamically calculated
@@ -52,6 +54,8 @@ rule sort_bam:
     log:
         # Log file to capture the stdout and stderr
         "{output_path}/{sample}/logs/{sample}_sort_bam.log",
+    conda:
+        "../envs/samtools.yaml",
     threads: lambda wcs: get_cpus(1,16)
     resources:
         # Resource constraints, dynamically calculated
@@ -92,6 +96,8 @@ rule picard_metrics:
     log:
         # Log file to capture the stdout and stderr of the Picard tool
         "{output_path}/{sample}/logs/{sample}_picard_metrics.log",
+    conda:
+        "../envs/picard.yaml",
     threads: 1  # Single-threaded as Picard tools often are
     resources:
         # Resource constraints dynamically calculated
