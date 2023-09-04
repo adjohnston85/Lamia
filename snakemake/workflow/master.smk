@@ -469,7 +469,25 @@ def get_all_files(D_genomes, D_sample_details):
                 # Outputs from the rule 'sort_bam'
                 "{}/03_align_fastq/{}_s.bam".format(sample_path, sample),
                 "{}/03_align_fastq/{}_s.bam.bai".format(sample_path, sample),
-                
+
+                # Outputs from the rule 'bismark_deduplicate'
+                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated.bam".format(sample_path, sample),
+                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplication_report.txt".format(sample_path, sample),
+
+                # Outputs from the rule 'bismark_methylation'
+                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated.bismark.cov.gz".format(sample_path, sample),
+                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated.bedGraph.gz".format(sample_path, sample),
+                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt".format(sample_path, sample),
+                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated.M-bias.txt".format(sample_path, sample),
+
+                # Outputs from the rule 'bismark2report'
+                "{}/03_align_fastq/{}_r1_bismark_bt2_PE_report.html".format(sample_path, sample),
+               
+                # Outputs from rule 'picard_metrics'
+                "{}/03_align_fastq/{}_insert_size_histogram.pdf".format(sample_path, sample),
+                "{}/03_align_fastq/{}_insert_size_metrics.txt".format(sample_path, sample),
+                "{}/03_align_fastq/{}_hs_metrics.txt".format(sample_path, sample), 
+
                 # Section 4: BAM deduplication and further processing
                 # Outputs from the rule 'deduplicate_bam' in 04_deduplicate_bam.smk
                 "{}/04_deduplicate_bam/{}_CT_genome.bam".format(sample_path, sample),
