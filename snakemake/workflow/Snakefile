@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# Snakemake Snakefile for the Majel pipeline
+
+# Include rule and function files
 include: "master.smk"
 include: "rules/00_transfer_ref_genome.smk"
 include: "rules/01_softlink_fastq.smk"
@@ -14,29 +17,48 @@ include: "rules/07_calculate_statistics.smk"
 include: "rules/08_methylseekr_and_TDF.smk"
 include: "rules/09_majel_cleanup.smk"
 
-localrules: all, softlink_fastq, calculate_conversion, cleanup, rsync
+# Define local rules for the pipeline
+localrules: \
+    all, \
+    transfer_ref_genome, \
+    softlink_fastq, \
+    picard_metrics, \
+    bismark2report, \
+    calculate_coverage, \
+    merge_fastq, \
+    calculate_conversion, \
+    cleanup, \
+    rsync
 
-# Specify all output files resulting from Majel pipeline
-# Dictionaries are derived from master.smk
 local_log = os.path.join(config['output_path'], 'snakemake')
 output_files = get_all_files(D_genomes, D_sample_details)
 
+# Define a rule to generate all output files from the pipeline
 rule all:
     input:
         output_files
 
+# Define actions to perform on pipeline start, success, and error
 onstart:
+    # Append the hidden snakemake log to a local log file    
     shell("cat {log} >> {local_log}.log")
 
 onsuccess:
+    # Copy relevant portion of log to the sample folder
     copy_log_to_sample(log)
+    
+    # Append the hidden snakemake log to a local log file
     shell("cat {log} >> {local_log}.log")
 
+    # Remove temporary files for each sample
     for sample, sample_details in D_sample_details.items():
         remove_temp_files(sample, sample_details)
 
 onerror:
+    # Copy relevant portion of log to the sample folder    
     copy_log_to_sample(log)
+    
+    # Append the hidden snakemake log to a local log file    
     shell("cat {log} >> {local_log}.error")
 
 '''
@@ -75,15 +97,18 @@ Rules:
     05_call_methylation.smk:
         call_methylation        - calls cytosine methylation using MethylDackel for downstream analysis
 
-    05_call_variants.smk:
+    06_call_variants.smk:
         mask_converted_bases    - masks base positions in BAM potentially affected by cytosine conversion
-        coverage_to_regions     - reates fa.fai file that splits genome into 500 regions based on coverage
         call_variants           - calls variants from cytosine converted data
 
-    06_calculate_statistics.smk:
+    07_calculate_statistics.smk:
         calculate_coverage      - calculates sequencing coverage statistics
         calculate_conversion    - calculates cytosine conversion statistics
 
-    07_methylseekr_and_TDF.smk:
+    08_methylseekr_and_TDF.smk:
         methylseekr_and_TDF     - calls UMRs and LMRs with and without PMDs, produces TDF file for IGV
+
+    09_majel_cleanup.smk:
+        cleanup                 - removes temporary files, restructures ouput directories, and zips text files
+        rsync                   - moves final output to a specified directory
 '''

@@ -21,8 +21,6 @@ email: username@email.com
 
 account: O2D-number
 
-library_type: "bs-seq"
-
 latency-wait: 60
 
 conda_prefix: "/datasets/work/hb-meth-atlas/work/pipeline_data/majel_conda/envs"
