@@ -18,7 +18,7 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 ## Introduction
 
 The Majel pipeline streamlines the analysis of DNA methylation sequencing data by automating SRA downloading, fastq trimming, sequence alignment, deduplication, methylation calling, variant detection and various QC analyses. The pipeline utilizes the Snakemake workflow management system to ensure efficient and reproducible execution, allow customizable HPC resource usage and foster modularity.  
-&nbsp
+<br>
 ## Pipeline Components
 
 The pipeline comprises the following main components:
@@ -30,7 +30,7 @@ The pipeline comprises the following main components:
 - **Configuration:** The pipeline's behavior is governed by the `config.yaml` file. This configuration file specifies reference genome paths, sample details, and other configuration options, detailed below.
 
 - **Workflow Control:** The `Snakefile` orchestrates the workflow by setting which rules to include and managing their dependencies.  
-&nbsp
+<br>
 ## Usage
 
 To run the Majel pipeline:
@@ -42,7 +42,7 @@ To run the Majel pipeline:
 
    ln -s /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/config/slurm/config.yaml ~/.config/snakemake/slurm/config.yaml
    ```  
-&nbsp
+<br>
 2. Activate the shared Conda install. 
 
    ```bash
@@ -54,9 +54,9 @@ To run the Majel pipeline:
    ```  
 
    Alternatively, install the majel environment (snakemake/workflow/envs/majel.yaml) on your own Mambaforge install.  
-&nbsp
+<br>
 3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).  
-&nbsp
+<br>
 4. Navigate to the 'snakemake/workflow' directory and execute the following command:
 
    ```bash
@@ -69,7 +69,7 @@ To run the Majel pipeline:
                                    [umi_loc=<string>] [umi_prefix=<string>] [whole_experiment=<boolean>]
                          ]
    ```  
-&nbsp
+<br>
 ## Configuration Options
 
 Placed after the snakemake --config option. Default options are set in the 'snakemake/config.yaml' file. Options are specified without dashes and use equal signs to bridge with their values (e.g. --config option1=value1 option2=value2):
@@ -119,68 +119,68 @@ Placed after the snakemake --config option. Default options are set in the 'snak
 Use these configuration options to customize and configure your Majel pipeline for your specific sequencing data and analysis requirements.  
 
 Snakemake will automatically manage the creation of Conda environments and execution of rules.  
-&nbsp
+<br>
 ## Pipeline Rules
 
 ### Snakefile
 **all**: establishes all output files from all rules
-&nbsp
+<br>
 ### 00_transfer_ref_genome.smk
 **transfer_ref_genome**: transfers reference genome files to working directory when using an HPC job scheduling system  
-&nbsp
+<br>
 ### 01_softlink_fastq.smk
 **softlink_fastq**: softlinks fastq files derived from "data_dir" and "file_prefixes" --config variable  
-&nbsp 
+<br> 
 ### 01_sra_download.smk
 **sra_download**: downloads run accessions stiulated in "file_prefixes --config variable
 
 **sra_to_fastq**: converts sra files to fastqs  
-&nbsp
+<br>
 ### 02_trim_fastq.smk
 **move_umi**: moves umis from read to name uisng Fastp
 
 **trim_fastq**: trims fastqs using trim_galore
 
 **merge_fastq**: merges r1 fastqs together and r2 fastqs together  
-&nbsp
+<br>
 ### 03_align_fastq.smk
 **bismark_align**: aligns fastq sequences using Bismark to produce a BAM file
 
 **sort_bam**: sorts BAM file produced by Bismark  
-&nbsp
+<br>
 ### 03_bismark2report.smk
 **bismark_deduplicate**: used only for bismark2report: deduplicates BAM file
 
 **bismark_methylation**: used only for bismark2report: calls cytosine methylation
 
 **bismark2report**: produces Bismark html report  
-&nbsp
+<br>
 ### 04_deduplicate_bam.smk
 **deduplicate_bam**: deduplicates reads in sorted BAM using Gencore for UMI support
 
 **merge_deduplicate_bams**: merges deduplicated CT and GA BAMs  
-&nbsp
+<br>
 ### 05_call_methylation.smk
 **call_methylation**: calls cytosine methylation using MethylDackel for downstream analysis  
-&nbsp
+<br>
 ### 06_call_variants.smk
 **mask_converted_bases**: masks base positions in BAM potentially affected by cytosine conversion
 
 **call_variants**: calls variants from cytosine converted data  
-&nbsp
+<br>
 ### 07_calculate_statistics.smk
 **calculate_coverage**: calculates sequencing coverage statistics
 
 **calculate_conversion**: calculates cytosine conversion statistics  
-&nbsp
+<br>
 ### 08_methylseekr_and_TDF.smk
 **methylseekr_and_TDF**: calls UMRs and LMRs with and without PMDs, produces TDF file for IGV  
-&nbsp
+<br>
 ### 09_majel_cleanup.smk
 **cleanup**: removes temporary files, restructures ouput directories, and zips text files
 
 **rsync**: moves final output to a specified directory  
-&nbsp
+<br>
 ## Customization
 
 The pipeline is designed to be customizable:
@@ -188,7 +188,7 @@ The pipeline is designed to be customizable:
 - **Adding Steps:** Extend the pipeline by adding new rules for additional analysis steps, following the pattern of existing rules.
 - **Configuration:** Modify `config.yaml` to tailor parameters, paths, and settings to your specific analysis.
 - **Workflow Modification:** Adjust the `Snakefile` to control rule execution or introduce conditional logic.  
-&nbsp
+<br>
 ## Output
 
 Upon successful execution, the pipeline generates various outputs:
@@ -201,18 +201,18 @@ Upon successful execution, the pipeline generates various outputs:
 - Log files  
 
 Default output path is the `snakemake/workflow` directory but can be customized as needed using the  `config.yaml` file or --config option.  
-&nbsp
+<br>
 ## Troubleshooting
 
 - **Dependencies:** Ensure all required software and tools are installed. Snakemake will manage Conda environments specified in the `snakemake/worflow/envs` directory.
 - **Configuration:** Double-check paths, filenames, and parameters in the `config.yaml` and `run_file` file.
 - **Error Handling:** Review logs generated in the `logs` directory for informative error messages in case of failures.  
-&nbsp
+<br>
 ## Contributing
 
 Contributions are welcome! Feel free to suggest improvements, new features, or report issues by opening an issue or submitting a pull request.  
-&nbsp
+<br>
 ## License
 
 This pipeline is released under the MIT License.
-&nbsp
+<br>
