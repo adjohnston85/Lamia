@@ -3,7 +3,8 @@
 The Majel Snakemake pipeline automates the analysis of DNA methylation sequencing data. This README provides an in-depth overview of the pipeline, its rules, and instructions for usage.  
 <br>
 
-![Majel DAG](../images/snakemake_dag.svg)
+![Majel DAG](../images/snakemake_dag.svg)  
+<br>
 
 ## Table of Contents
 
