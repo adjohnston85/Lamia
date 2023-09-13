@@ -1,6 +1,7 @@
 # Majel Snakemake Pipeline README
 
-The Majel Snakemake pipeline automates the analysis of DNA methylation sequencing data. This README provides an in-depth overview of the pipeline, its rules, and instructions for usage.
+The Majel Snakemake pipeline automates the analysis of DNA methylation sequencing data. This README provides an in-depth overview of the pipeline, its rules, and instructions for usage.  
+<br>
 
 ## Table of Contents
 
@@ -13,7 +14,8 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 - [Output](#output)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
-- [License](#license)
+- [License](#license)  
+<br>
 
 ## Introduction
 
