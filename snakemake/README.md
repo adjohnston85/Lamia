@@ -43,8 +43,8 @@ To run the Majel pipeline:
    mkdir -p ~/.config/snakemake/slurm/
 
    ln -s /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/config/slurm/config.yaml ~/.config/snakemake/slurm/config.yaml
-   ```  
-
+   ``` 
+<br>
 2. Activate the shared Conda install. 
 
    ```bash
@@ -53,12 +53,12 @@ To run the Majel pipeline:
    mamba init
 
    mamba activate majel
-   ```  
+   ```
 
-   Alternatively, install the majel environment (snakemake/workflow/envs/majel.yaml) on your own Mambaforge install.  
-
-3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).  
-
+   Alternatively, install the majel environment (snakemake/workflow/envs/majel.yaml) on your own Mambaforge install.
+<br>
+3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).
+<br>
 4. Navigate to the 'snakemake/workflow' directory and execute the following command:
 
    ```bash
@@ -71,6 +71,7 @@ To run the Majel pipeline:
                                    [umi_loc=<string>] [umi_prefix=<string>] [whole_experiment=<boolean>]
                          ]
    ```  
+<br>
 
 ## Configuration Options
 
