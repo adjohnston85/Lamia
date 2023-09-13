@@ -73,49 +73,49 @@ To run the Majel pipeline:
 
 ## Configuration Options
 
-Placed after the snakemake --config option. Default options are set in the `snakemake/config.yaml` file. Options are specified without dashes and use equal signs to bridge with their values (e.g. --config option1=value1 option2=value2):
+Placed after the snakemake `--config` option. Default options are set in the `snakemake/config.yaml` file. Options are specified without dashes and use equal signs to bridge with their values (e.g. `--config option1=value1 option2=value2`):
 
-- **account**: Specifies the project identifier for HPC job allocation. Project codes can be listed on the HPC using the get_project_codes command. (e.g., account=OD-01234)
+- **account**: Specifies the project identifier for HPC job allocation. Project codes can be listed on the HPC using the get_project_codes command. (e.g., `account=OD-01234`)
 
-- **cleanup**: This option is a boolean (true/false) flag that controls whether cleanup operations are performed after pipeline successful completion. Cleanup operations involve removing temporary files, organizing the final output and file compression. (e.g., cleanup=True)
+- **cleanup**: This option is a boolean (true/false) flag that controls whether cleanup operations are performed after pipeline successful completion. Cleanup operations involve removing temporary files, organizing the final output and file compression. (e.g., `cleanup=True`)
 
-- **conda_prefix**: Defines the path to the directory where Snakemake installs Conda environments. (e.g., conda_prefix="/path/to/conda/envs)
+- **conda_prefix**: Defines the path to the directory where Snakemake installs Conda environments. (e.g., `conda_prefix="/path/to/conda/envs`)
 
-- **data_dir**: Specifies the directory containing input data (i.e., fastq files). (e.g., data_dir=/path/to/input/data)
+- **data_dir**: Specifies the directory containing input data (i.e., fastq files). (e.g., `data_dir=/path/to/input/data`)
 
-- **email**: Provides an email address for notifications during pipeline execution. (e.g., email=username@domain.com)
+- **email**: Provides an email address for notifications during pipeline execution. (e.g., `email=username@domain.com`)
 
-- **file_prefixes**: Specifies a list of file name prefixes, full file names or SRAs. Used for identifying fastq files within the input data directory (specified using the data_dir option) or SRA files for download using sra-tools. Use semicolon (;) as the list delimiter.  (e.g., file_prefixes=sample_A_R;sample_B_R OR file_prefixes=relative/path/sampleA/sample_A_R1.fq.gz;relative/path/sampleA/sample_A_R2.fq.gz OR file_prefixes=SRA1234567;SRA1234568)
+- **file_prefixes**: Specifies a list of file name prefixes, full file names or SRAs. Used for identifying fastq files within the input data directory (specified using the `data_dir` option) or SRA files for download using sra-tools. Use semicolon (;) as the list delimiter.  (e.g., `file_prefixes=sample_A_R;sample_B_R` OR `file_prefixes=relative/path/sampleA/sample_A_R1.fq.gz;relative/path/sampleA/sample_A_R2.fq.gz` OR `file_prefixes=SRA1234567;SRA1234568`)
 
-- **genome**: Defines the reference genome (and directory name) used for alignment and analysis. (e.g., genome=hg38)
+- **genome**: Defines the reference genome (and directory name) used for alignment and analysis. (e.g., `genome=hg38`)
 
-- **genome_dir**: Specifies the path for reference genome directories. (e.g., genome_dir=/path/to/reference/genome/directories)
+- **genome_dir**: Specifies the path for reference genome directories. (e.g., `genome_dir=/path/to/reference/genome/directories`)
 
-- **library_type**: Indicates the type of library preparation for sequencing data. Values include bs-seq, swift or em-seq. (e.g., library_type=seq)
+- **library_type**: Indicates the type of library preparation for sequencing data. Values include bs-seq, swift or em-seq. (e.g., `library_type=em-seq`)
 
-- **maxins**: Sets the maximum insert size for paired-end reads. This determines the distance Bismark will search for alignment pairs. (e.g., maxins=1000)
+- **maxins**: Sets the maximum insert size for paired-end reads. This determines the distance Bismark will search for alignment pairs. (e.g., `maxins=1000`)
 
-- **non_directional**: This option is a boolean (true/false) flag that indicates whether the sequencing data is non-directional. (e.g., non_directional=True)
+- **non_directional**: This option is a boolean (true/false) flag that indicates whether the sequencing data is non-directional. (e.g., `non_directional=True`)
 
-- **output_path**: Defines the directory for pipeline output. Each sample with be given a directory within this directory. (e.g., output_path=/path/to/output/directory)
+- **output_path**: Defines the directory for pipeline output. Each sample with be given a directory within this directory. (e.g., `output_path=/path/to/output/directory`)
 
-- **project_dir**: Defines an additional directory for pipeline output reliative to the output_path. Used for sorting sample output into projects. (e.g. project_dir=SRX1234567)
+- **project_dir**: Defines an additional directory for pipeline output reliative to the `output_path`. Used for sorting sample output into projects. (e.g. `project_dir=SRX1234567`)
 
-- **roi_bed**: Specifies a BED file defining regions of interest (ROIs) in the genome. Used to calculate coverage and conversion statistics and defines the capture regions for Picard hybrid-selection (HS) metrics.
+- **roi_bed**: Specifies a BED file defining regions of interest (ROIs) in the genome. Used to calculate coverage and conversion statistics and defines the capture regions for Picard hybrid-selection (HS) metrics. (e.g., `roi_bed=/path/to/roi_bed.bed`)
 
-- **rsync**: Defines the path where the final pipeline output will be transferred. (e.g. rsync=/path/to/final/destination)
+- **rsync**: Defines the path where the final pipeline output will be transferred. (e.g. `rsync=/path/to/final/destination`)
 
-- **run_file**: Specifies a tab-separated values (TSV) file with 3 columns for sample_name, data_dir, and file_prefixes values. Addtional columns can include any other configuration option, but must use the option=value configuration. (e.g., run_file=/path/to/tsv/samples.tsv)
+- **run_file**: Specifies a tab-separated values (TSV) file with 3 columns for sample_name, data_dir, and file_prefixes values. Addtional columns can include any other configuration option, but must use the option=value configuration. (e.g., `run_file=/path/to/tsv/samples.tsv`)
 
-- **trim_lengths**: Specifies the profile for number of base pairs trimmed from 5'and 3' ends of sequence reads (post adapter trimming). Defaults to value of library_type option. Options are: swift, em-seq, & no-trim, a single integer to cut from all ends, or a comma seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3'). (e.g., trim_lengths=em-seq OR trim_lengths=10 OR trim_lengths=10,10,15,10)
+- **trim_lengths**: Specifies the profile for number of base pairs trimmed from 5'and 3' ends of sequence reads (post adapter trimming). Defaults to value of library_type option. Options are: swift, em-seq, & no-trim, a single integer to cut from all ends, or a semi-colon seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3'). (e.g., `trim_lengths=em-seq` OR `trim_lengths=10` OR `trim_lengths=10;10;15;10`)
 
-- **umi_len**: Sets the length of Unique Molecular Identifiers (UMIs) use by Gencore for deduplication. (e.g., umi_len=8)
+- **umi_len**: Sets the length of Unique Molecular Identifiers (UMIs) use by Gencore for deduplication. (e.g., `umi_len=8`)
 
-- **umi_loc**: Defines the location of UMIs within the fastq data for relocation by Fastp. Options include: index1, index2, read1, read2, per_index, per_read. (e.g., umi_loc=per_read)
+- **umi_loc**: Defines the location of UMIs within the fastq data for relocation by Fastp. Options include: index1, index2, read1, read2, per_index, per_read. (e.g., `umi_loc=per_read`)
 
-- **umi_prefix**: Defines the prefix used by Fastp to paste in front of the UMI and by Gencore to identify the UMI. (e.g. umi_prefix=UMI)
+- **umi_prefix**: Defines the prefix used by Fastp to paste in front of the UMI and by Gencore to identify the UMI. (e.g. `umi_prefix=UMI`)
 
-- **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the of the SRA specified in the file_prefixes option. Note: causes a delay in pipeline initation resulting from the SQL database search. (e.g. whole_experiment=True)
+- **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the of the SRA specified in the file_prefixes option. Note: causes a delay in pipeline initation resulting from the SQL database search. (e.g. `whole_experiment=True`)
 
 Use these configuration options to customize and configure your Majel pipeline for your specific sequencing data and analysis requirements.  
 
@@ -131,10 +131,10 @@ Snakemake will automatically manage the creation of Conda environments and execu
 **transfer_ref_genome**: transfers reference genome files to working directory when using an HPC job scheduling system  
 <br>
 ### 01_softlink_fastq.smk
-**softlink_fastq**: softlinks fastq files derived from "data_dir" and "file_prefixes" --config variable  
+**softlink_fastq**: softlinks fastq files derived from `data_dir` and `file_prefixes` `--config` options  
 <br> 
 ### 01_sra_download.smk
-**sra_download**: downloads run accessions stiulated in "file_prefixes --config variable
+**sra_download**: downloads run accessions stiulated in `file_prefixes` `--config` options
 
 **sra_to_fastq**: converts sra files to fastqs  
 <br>
@@ -189,7 +189,7 @@ Snakemake will automatically manage the creation of Conda environments and execu
 The pipeline is designed to be customizable:
 
 - **Adding Steps:** Extend the pipeline by adding new rules for additional analysis steps, following the pattern of existing rules.
-- **Configuration:** Modify `config.yaml` to tailor parameters, paths, and settings to your specific analysis.
+- **Configuration:** Modify `snakemake/config.yaml` or use `--config` to tailor parameters, paths, and settings to your specific analysis.
 - **Workflow Modification:** Adjust the `Snakefile` to control rule execution or introduce conditional logic.  
 <br>
 
@@ -204,7 +204,7 @@ Upon successful execution, the pipeline generates various outputs:
 - QC files
 - Log files  
 
-Default output path is the `snakemake/workflow` directory but can be customized as needed using the  `config.yaml` file or --config option.  
+Default output path is the `snakemake/workflow` directory but can be customized as needed using the  `snakemake/config.yaml` file or `--config` option.  
 <br>
 
 ## Troubleshooting
