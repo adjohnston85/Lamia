@@ -28,7 +28,7 @@ The pipeline comprises the following main components:
 
 - **Custom Scripts:** In addition to Snakemake rules, custom scripts are used to complete specific tasks. These scripts, along with splitting rules into smk files, enhance modularity and readability, making it easier to manage this complex analysis workflow.
 
-- **Configuration:** The pipeline's behavior is governed by the `config.yaml` file. This configuration file specifies reference genome paths, sample details, and other configuration options, detailed below.
+- **Configuration:** The pipeline's behavior is governed by the `snakemake/config/config.yaml` file. This configuration file specifies reference genome paths, sample details, and other configuration options, detailed below.
 
 - **Workflow Control:** The `Snakefile` orchestrates the workflow by setting which rules to include and managing their dependencies.  
 <br>
@@ -73,7 +73,7 @@ To run the Majel pipeline:
 
 ## Configuration Options
 
-Placed after the snakemake `--config` option. Default options are set in the `snakemake/config.yaml` file. Options are specified without dashes and use equal signs to bridge with their values (e.g. `--config option1=value1 option2=value2`):
+Placed after the snakemake `--config` option. Default options are set in the `snakemake/config/config.yaml` file. Options are specified without dashes and use equal signs to bridge with their values (e.g. `--config option1=value1 option2=value2`):
 
 - **account**: Specifies the project identifier for HPC job allocation. Project codes can be listed on the HPC using the get_project_codes command. (e.g., `account=OD-01234`)
 
@@ -134,7 +134,7 @@ Snakemake will automatically manage the creation of Conda environments and execu
 **softlink_fastq**: softlinks fastq files derived from `data_dir` and `file_prefixes` `--config` options  
 <br> 
 ### 01_sra_download.smk
-**sra_download**: downloads run accessions stiulated in `file_prefixes` `--config` options
+**sra_download**: downloads run accessions specified in `file_prefixes` `--config` options
 
 **sra_to_fastq**: converts sra files to fastqs  
 <br>
@@ -189,7 +189,7 @@ Snakemake will automatically manage the creation of Conda environments and execu
 The pipeline is designed to be customizable:
 
 - **Adding Steps:** Extend the pipeline by adding new rules for additional analysis steps, following the pattern of existing rules.
-- **Configuration:** Modify `snakemake/config.yaml` or use `--config` to tailor parameters, paths, and settings to your specific analysis.
+- **Configuration:** Modify `snakemake/config/config.yaml` or use `--config` to tailor parameters, paths, and settings to your specific analysis.
 - **Workflow Modification:** Adjust the `Snakefile` to control rule execution or introduce conditional logic.  
 <br>
 
@@ -204,13 +204,13 @@ Upon successful execution, the pipeline generates various outputs:
 - QC files
 - Log files  
 
-Default output path is the `snakemake/workflow` directory but can be customized as needed using the  `snakemake/config.yaml` file or `--config` option.  
+Default output path is the `snakemake/workflow` directory but can be customized as needed using the  `snakemake/config/config.yaml` file or `--config` option.  
 <br>
 
 ## Troubleshooting
 
 - **Dependencies:** Ensure all required software and tools are installed. Snakemake will manage Conda environments specified in the `snakemake/worflow/envs` directory.
-- **Configuration:** Double-check paths, filenames, and parameters in the `config.yaml` and `run_file` file.
+- **Configuration:** Double-check paths, filenames, and parameters in the `snakemake/config/config.yaml` and `run_file` file.
 - **Error Handling:** Review logs generated in the `logs` directory for informative error messages in case of failures.  
 <br>
 
