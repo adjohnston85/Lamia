@@ -19,6 +19,7 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 
 The Majel pipeline streamlines the analysis of DNA methylation sequencing data by automating SRA downloading, fastq trimming, sequence alignment, deduplication, methylation calling, variant detection and various QC analyses. The pipeline utilizes the Snakemake workflow management system to ensure efficient and reproducible execution, allow customizable HPC resource usage and foster modularity.  
 <br>
+
 ## Pipeline Components
 
 The pipeline comprises the following main components:
@@ -31,6 +32,7 @@ The pipeline comprises the following main components:
 
 - **Workflow Control:** The `Snakefile` orchestrates the workflow by setting which rules to include and managing their dependencies.  
 <br>
+
 ## Usage
 
 To run the Majel pipeline:
@@ -43,6 +45,7 @@ To run the Majel pipeline:
    ln -s /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/config/slurm/config.yaml ~/.config/snakemake/slurm/config.yaml
    ```  
 <br>
+
 2. Activate the shared Conda install. 
 
    ```bash
@@ -55,8 +58,10 @@ To run the Majel pipeline:
 
    Alternatively, install the majel environment (snakemake/workflow/envs/majel.yaml) on your own Mambaforge install.  
 <br>
+
 3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).  
 <br>
+
 4. Navigate to the 'snakemake/workflow' directory and execute the following command:
 
    ```bash
@@ -70,6 +75,7 @@ To run the Majel pipeline:
                          ]
    ```  
 <br>
+
 ## Configuration Options
 
 Placed after the snakemake --config option. Default options are set in the 'snakemake/config.yaml' file. Options are specified without dashes and use equal signs to bridge with their values (e.g. --config option1=value1 option2=value2):
@@ -120,6 +126,7 @@ Use these configuration options to customize and configure your Majel pipeline f
 
 Snakemake will automatically manage the creation of Conda environments and execution of rules.  
 <br>
+
 ## Pipeline Rules
 
 ### Snakefile
@@ -181,6 +188,7 @@ Snakemake will automatically manage the creation of Conda environments and execu
 
 **rsync**: moves final output to a specified directory  
 <br>
+
 ## Customization
 
 The pipeline is designed to be customizable:
@@ -189,6 +197,7 @@ The pipeline is designed to be customizable:
 - **Configuration:** Modify `config.yaml` to tailor parameters, paths, and settings to your specific analysis.
 - **Workflow Modification:** Adjust the `Snakefile` to control rule execution or introduce conditional logic.  
 <br>
+
 ## Output
 
 Upon successful execution, the pipeline generates various outputs:
@@ -202,17 +211,21 @@ Upon successful execution, the pipeline generates various outputs:
 
 Default output path is the `snakemake/workflow` directory but can be customized as needed using the  `config.yaml` file or --config option.  
 <br>
+
 ## Troubleshooting
 
 - **Dependencies:** Ensure all required software and tools are installed. Snakemake will manage Conda environments specified in the `snakemake/worflow/envs` directory.
 - **Configuration:** Double-check paths, filenames, and parameters in the `config.yaml` and `run_file` file.
 - **Error Handling:** Review logs generated in the `logs` directory for informative error messages in case of failures.  
 <br>
+
 ## Contributing
 
 Contributions are welcome! Feel free to suggest improvements, new features, or report issues by opening an issue or submitting a pull request.  
 <br>
+
 ## License
 
 This pipeline is released under the MIT License.
 <br>
+
