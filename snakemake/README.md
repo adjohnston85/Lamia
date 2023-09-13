@@ -53,8 +53,10 @@ To run the Majel pipeline:
    mamba activate majel
    ```
 
-   Alternatively, install the majel environment (snakemake/workflow/envs/majel.yaml) on your own Mambaforge install.
-3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).
+   Alternatively, install the majel environment (snakemake/workflow/envs/majel.yaml) on your own Mambaforge install.  
+
+3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).  
+
 4. Navigate to the 'snakemake/workflow' directory and execute the following command:
 
    ```bash
@@ -71,7 +73,7 @@ To run the Majel pipeline:
 
 ## Configuration Options
 
-Placed after the snakemake --config option. Default options are set in the 'snakemake/config.yaml' file. Options are specified without dashes and use equal signs to bridge with their values (e.g. --config option1=value1 option2=value2):
+Placed after the snakemake --config option. Default options are set in the `snakemake/config.yaml` file. Options are specified without dashes and use equal signs to bridge with their values (e.g. --config option1=value1 option2=value2):
 
 - **account**: Specifies the project identifier for HPC job allocation. Project codes can be listed on the HPC using the get_project_codes command. (e.g., account=OD-01234)
 
