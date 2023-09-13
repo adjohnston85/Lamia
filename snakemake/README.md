@@ -130,7 +130,7 @@ Snakemake will automatically manage the creation of Conda environments and execu
 ## Pipeline Rules
 
 ### Snakefile
-**all**: establishes all output files from all rules
+**all**: establishes all output files from all rules  
 <br>
 ### 00_transfer_ref_genome.smk
 **transfer_ref_genome**: transfers reference genome files to working directory when using an HPC job scheduling system  
