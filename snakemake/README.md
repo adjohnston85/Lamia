@@ -37,13 +37,14 @@ The pipeline comprises the following main components:
 
 To run the Majel pipeline:
 <br>
+
 1. Setup the slurm profile.
 
    ```bash
    mkdir -p ~/.config/snakemake/slurm/
 
    ln -s /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/config/slurm/config.yaml ~/.config/snakemake/slurm/config.yaml
-   ``` 
+   ```
 <br><br>
 2. Activate the shared Conda install. 
 
