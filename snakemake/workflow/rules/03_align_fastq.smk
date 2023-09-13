@@ -92,7 +92,7 @@ rule picard_metrics:
         # Reference genome name
         genome = lambda wcs: D_sample_details[wcs.sample]["genome"],
         # Interval list for ROI, constructed dynamically from roid_bed based on output path and sample name
-        interval_list = lambda wcs: "{wcs.output_path}/{wcs.sample}/03_align_fastq/ROI.interval_list",
+        interval_list = lambda wcs: "{}/{}/03_align_fastq/ROI.interval_list".format(wcs.output_path, wcs.sample),
     log:
         # Log file to capture the stdout and stderr of the Picard tool
         "{output_path}/{sample}/logs/{sample}_picard_metrics.log",
@@ -110,15 +110,18 @@ rule picard_metrics:
     shell:
         """
         # Collect Insert Size Metrics
-        picard CollectInsertSizeMetrics I={input.bam} O={output.insert_size} H={output.histogram}
+        picard CollectInsertSizeMetrics -I {input.bam} -O {output.insert_size} -H {output.histogram} &>> {log}
         
         # If a regions of interest (ROI) BED file is provided
-        if [ -n {params.roi_bed} ]; then
+        if [ -n '{params.roi_bed}' ]; then
             # Convert BED to Interval List
-            picard BedToIntervalList I={params.roi_bed} O={params.interval_list} SD={params.genome_path}/{params.genome}.dict
+            picard BedToIntervalList -I {params.roi_bed} -O {params.interval_list} \
+            -SD {params.genome_path}/{params.genome}.dict &>> {log}
             
             # Collect Hybrid Selection Metrics
-            picard CollectHsMetrics I={input.bam} O={output.hybrid_selection} \
-            BAIT_INTERVALS={params.interval_list} TARGET_INTERVALS={params.interval_list}
+            picard CollectHsMetrics -I {input.bam} -O {output.hybrid_selection} \
+            -BI {params.interval_list} -TI {params.interval_list} &>> {log}
+        else
+            echo 'no regions of interest specified' > {output.hybrid_selection}
         fi
         """

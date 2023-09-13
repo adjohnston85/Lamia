@@ -4,6 +4,10 @@ rule transfer_ref_genome:
         lambda wcs: D_genomes[wcs.sample],  # Dynamic input based on the sample name
     output:
         # The following output files are produced, including bisulfite-converted genome sequences
+        "{output_path}/{sample}/{sample}.fa",
+        "{output_path}/{sample}/{sample}.fa.fai",
+        "{output_path}/{sample}/{sample}.genome",
+        "{output_path}/{sample}/CHH_ROI.bed",
         "{output_path}/{sample}/Bisulfite_Genome/{sample}.CT_conversion.fa",
         "{output_path}/{sample}/Bisulfite_Genome/{sample}.GA_conversion.fa",
         "{output_path}/{sample}/Bisulfite_Genome/GA_conversion/genome_mfa.GA_conversion.fa",

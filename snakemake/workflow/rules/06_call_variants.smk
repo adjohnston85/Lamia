@@ -73,6 +73,10 @@ rule call_variants:
         chunks=lambda wcs: [D_sample_details[wcs.sample]["nchunks"][chrom] for chrom in D_sample_details[wcs.sample]["nchunks"]],
         # Determine if a region of interest (ROI) BED file exists.
         roi_bed=lambda wcs: D_sample_details[wcs.sample].get("roi_bed",""),
+    log:
+        "{output_path}/{sample}/logs/{sample}_call_variants.log",
+    conda:
+        "../envs/freebayes.yaml"
     threads: 53
     resources:
         # Specify resource requirements.
@@ -85,7 +89,7 @@ rule call_variants:
     shell:
         """
         # If a region of interest (ROI) BED file is provided, copy it to the beds file.
-        if [ -n {params.roi_bed} ]; then
+        if [ -n '{params.roi_bed}' ]; then
             cp {params.roi_bed} {params.beds}.bed
         else
             # Extract chromosome and chunk information for generating BED files.

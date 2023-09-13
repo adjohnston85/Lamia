@@ -51,6 +51,9 @@ rule bismark_methylation:
         time_min=lambda wildcards, input, threads: get_time_min(wildcards, input, "bismark_methylation", threads),
         mem_mb=get_mem_mb,
         cpus=lambda wcs, threads: threads,
+        account=lambda wcs: D_sample_details[wcs.sample]['account'],
+        email=lambda wcs: D_sample_details[wcs.sample]['email'],
+        partition=""
     shell:
         # Runs bismark_methylation_extractor with specified options and parameters
         'bismark_methylation_extractor {input} --bedGraph {params.ignore} '

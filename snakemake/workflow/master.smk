@@ -36,7 +36,7 @@ config["nchunks"] = {
 config["genome_path"] = os.path.join(config["genome_dir"],  config["genome"])
 
 # Process file_prefixes from the config. If not available, set to ["*"]
-config["file_prefixes"] = ["*"] if "file_prefixes" not in config else list(filter(None, re.split(',| |;', config["file_prefixes"])))
+config["file_prefixes"] = ["*"] if "file_prefixes" not in config else list(filter(None, re.split(' |;', config["file_prefixes"])))
 
 # If output_path is not set, use the current working directory
 if "output_path" not in config: config["output_path"] = os.getcwd()
@@ -91,7 +91,7 @@ else:
                 if sample_info[1]:
                     D_sample_details[sample]["data_dir"] = sample_info[1]
                 if sample_info[2]:
-                    D_sample_details[sample]["file_prefixes"] = list(filter(None, re.split(',| |;', sample_info[2])))
+                    D_sample_details[sample]["file_prefixes"] = list(filter(None, re.split(' |;', sample_info[2])))
                 if len(sample_info) > 3:
                     for column in sample_info[3:]:
                         variable = column.split("=")[0]
@@ -132,7 +132,8 @@ for sample in D_sample_details:
     # Define the SRA info file path for the current sample
     F_sra_info_path = "{}/{}_sra_info.txt".format(D_sample_details[sample]["output_path"], sample)
     
-    # Initialize variable for the new sample name
+    # Initialize variable for the new sample name 
+    # Used for updating the keys of D_sample_details if the sample name is modified by this loop
     new_sample_name = sample
     
     # Initialize dictionaries and lists for run files and trimmed fastq files
@@ -144,11 +145,6 @@ for sample in D_sample_details:
     SQL_run_accessions = None
     L_sra_sizes = None
     
-    # Handle UMI (Unique Molecular Identifier) related data if "umi_len" is not specified
-    if not "umi_len" in D_sample_details[sample]:
-        D_sample_details[sample].pop("umi_prefix")
-        D_sample_details[sample]["umi_loc"] = "no UMIs (umi_len not specified)"
-
     # Iterate through the file prefixes of the sample
     for file_prefix in D_sample_details[sample]["file_prefixes"]:
         # Check if data directory is given or if the file prefix is an absolute path
@@ -175,7 +171,7 @@ for sample in D_sample_details:
                     D_trimmed_fqs["_fastp_{}".format(fq_pair)].append("{}_fastp_{}.fq.gz".format(stem, fq_pair))
                     D_trimmed_fqs["_fastp_{0}_val_{0}".format(fq_pair)].append("{0}_fastp_{1}_val_{1}.fq.gz".format(stem, fq_pair))
         else:
-            # If 'whole_experiment' key is found in sample details, read SRA info
+            # If 'whole_experiment' option is specified for a sample, get SRA info from SQL database
             SQL_run_accessions = None
             if "whole_experiment" in D_sample_details.get(sample, {}):
                 # If SRA info file exists retrive info
@@ -234,7 +230,7 @@ for sample in D_sample_details:
                 # Append file_prefix to run accessions list if SQL_run_accessions is empty
                 L_run_accessions.append(file_prefix)
 
-    # Check if the new sample name follows the naming convention
+    # Check if the sample name follows the naming convention
     if len(new_sample_name.split("_")) < 4:
        sys.exit('ERROR: sample_name "{}" is not within naming convention of tissue_subtissue_healthStatus_identifier')
 
@@ -349,8 +345,6 @@ for sample in D_sample_details:
     if "maxins" not in D_sample_details[sample]:
         if D_sample_details[sample]["library_type"] == "em-seq":
             D_sample_details[sample]["maxins"] = 1000
-        elif D_sample_details[sample]["library_type"] == "ccfDNA":
-            D_sample_details[sample]["maxins"] = 600
         else:
             D_sample_details[sample]["maxins"] = 500
 
@@ -638,7 +632,8 @@ def get_time_min(wcs, infiles, rule, threads):
         "trim_fastq": 600,
         "bismark_deduplicate": 600,
         "bismark_align": 4800,
-        "call_variants": 600,
+        "mask_converted_bases":1200,
+        "call_variants": 2400,
         "call_methylation": 600,
         "bismark_methylation": 600,
         "deduplicate_bam": 600,
