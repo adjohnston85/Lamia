@@ -83,7 +83,7 @@ else:
         for i, line in enumerate(run_file):
             if not line.startswith("sample_name"):
                 # Retrieve sample names and associated details from 'run_file'
-                sample_info = line.strip().split('\t')
+                sample_info = re.split(r'[\t,]', line.strip())
                 sample = sample_info[0]
                 sample_config()
                 
@@ -173,7 +173,7 @@ for sample in D_sample_details:
         else:
             # If 'whole_experiment' option is specified for a sample, get SRA info from SQL database
             SQL_run_accessions = None
-            if "whole_experiment" in D_sample_details.get(sample, {}):
+            if D_sample_details[sample]["whole_experiment"]:
                 # If SRA info file exists retrive info
                 if os.path.exists(F_sra_info_path):
                     with open(F_sra_info_path, 'r') as F_sra_info:
@@ -655,11 +655,11 @@ def get_time_min(wcs, infiles, rule, threads):
     # Estimate time for rules prior to fastq merging
     if rule in ["move_umis", "sra_download", "trim_fastq"]:
         # If the input is an SRA file, get its size
-        if infiles.r1.endswith(".sra"):
+        try:
             file_size_mb = get_file_size_mb(
-                wcs, [re.split(r"_|.sra", os.path.basename(infiles.r1))[0]]
+                wcs, infiles.r1
             )
-        else:
+        except:
             # Get the file sizes of both fastq files
             L_file_paths = [infiles.r1, infiles.r2]
             file_size_mb = get_file_size_mb(wcs, L_file_paths)

@@ -1,4 +1,3 @@
-sample_name	data_dir	file_prefixes
-blood_blood_healthy_100meth	/datasets/work/hb-custom-epigenetics/work/users/joh592/andrew_temp/230411_MN00524_0055_A000H5KL2M/Data/Intensities/BaseCalls	100_perc_meth
-blood_blood_healthy_50meth	/datasets/work/hb-custom-epigenetics/work/users/joh592/andrew_temp/230411_MN00524_0055_A000H5KL2M/Data/Intensities/BaseCalls	50_perc_meth
-blood_blood_healthy_0meth	/datasets/work/hb-custom-epigenetics/work/users/joh592/andrew_temp/230411_MN00524_0055_A000H5KL2M/Data/Intensities/BaseCalls	0_perc_meth
+sample_name,data_dir,file_prefixes,config_options
+tissue_subtissue_healthStatus_uniqueIdentifier,/path/to/data/directory,prefix_shared_by_read1_and_read2_fastqs;prefix2,option_1=value_1,option_2=value_2,option_n=value_n
+tissue_subtissue_healthStatus_SRX#,,SRA1234567;SRA1234568,option_1=value_1,option_2=value_2,option_n=value_n

@@ -21,7 +21,7 @@ rule sra_download:
 # Convert SRA files to FASTQ format using parallel-fastq-dump
 rule sra_to_fastq:
     input:
-        "{output_path}/{sample}/01_sequence_files/{run_accession}/{run_accession}.sra",
+        r1="{output_path}/{sample}/01_sequence_files/{run_accession}/{run_accession}.sra",
     output:
         "{output_path}/{sample}/01_sequence_files/{run_accession}_1.fastq.gz",
         "{output_path}/{sample}/01_sequence_files/{run_accession}_2.fastq.gz",
@@ -31,7 +31,7 @@ rule sra_to_fastq:
     threads: lambda wcs: get_cpus(1,16)
     resources:
         # Calculate time limit based on a custom function in master.smk
-        time_min=lambda wcs, threads: get_time_min(wcs, wcs, "sra_to_fastq", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, wcs, "sra_to_fastq", threads),
         # Fetch memory requirements from a custom function in master.smk
         mem_mb=get_mem_mb,
         cpus=lambda wcs, threads: threads,
@@ -43,4 +43,3 @@ rule sra_to_fastq:
         "--gzip --outdir {wildcards.output_path}/{wildcards.sample}/01_sequence_files/ --sra-id {input} "
         "--tmpdir {wildcards.output_path}/{wildcards.sample}/01_sequence_files/ "
         "&>> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log"
-

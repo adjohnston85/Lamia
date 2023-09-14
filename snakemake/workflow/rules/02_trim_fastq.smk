@@ -5,27 +5,21 @@ rule move_umis:
         # Uses a variety of wildcard constraints for flexibility.
         r1="{output_path}/{sample}/01_sequence_files/{prefix}_{read}1{suffix}.fastq.gz",
         r2="{output_path}/{sample}/01_sequence_files/{prefix}_{read}2{suffix}.fastq.gz",
-
     output:
         # Output files are stored in '02_trim_fastq' with a '_fastp_1' and '_fastp_2' tag to denote processed files.
         r1="{output_path}/{sample}/02_trim_fastq/{prefix}_{read}1{suffix}_fastp_1.fq.gz",
         r2="{output_path}/{sample}/02_trim_fastq/{prefix}_{read}2{suffix}_fastp_2.fq.gz",
-
     # Using constrained wildcards for the 'read' and 'suffix' to avoid ambiguity.
     wildcard_constraints:
         read = '[rR]?',
         suffix = '_?.*',
-
     # UMI information is dynamically obtained via a custom function called 'get_umi_info'.
     params:
         umi_info=lambda wcs: get_umi_info(wcs.sample),
-
     conda:
         "../envs/fastp.yaml",
-
     # Dynamic CPU allocation. Max limit is 16.
     threads: lambda wildcards: get_cpus(1,16),
-    
     # Resource constraints and user/account specific parameters.
     resources:
         time_min=lambda wcs, input, threads: get_time_min(wcs, input, "move_umis", threads),
@@ -34,7 +28,6 @@ rule move_umis:
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition="",
-    
     # Shell command to run fastp with various flags and arguments, including capturing JSON and HTML reports.
     shell:
         'fastp -i {input.r1} -I {input.r2} '
