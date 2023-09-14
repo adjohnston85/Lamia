@@ -18,12 +18,14 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)  
-<br>
+  
+  
 
 ## Introduction
 
 The Majel pipeline streamlines the analysis of DNA methylation sequencing data by automating SRA downloading, fastq trimming, sequence alignment, deduplication, methylation calling, variant detection and various QC analyses. The pipeline utilizes the Snakemake workflow management system to ensure efficient and reproducible execution, allow customizable HPC resource usage and foster modularity.  
-<br>
+  
+  
 
 ## Pipeline Components
 
