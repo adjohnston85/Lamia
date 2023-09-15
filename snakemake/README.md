@@ -137,24 +137,20 @@ Use these configuration options to customize and configure your Majel pipeline f
 ### Snakefile
 - **all**: establishes all output files from all rules  
 
-<br>
 
 ### 00_transfer_ref_genome.smk
 - **transfer_ref_genome**: transfers reference genome files to working directory when using an HPC job scheduling system  
 
-<br>
 
 ### 01_softlink_fastq.smk
 - **softlink_fastq**: softlinks fastq files derived from `data_dir` and `file_prefixes` `--config` options  
 
-<br>
  
 ### 01_sra_download.smk
 - **sra_download**: downloads run accessions specified in `file_prefixes` `--config` options
 
 - **sra_to_fastq**: converts sra files to fastqs  
 
-<br>
 
 ### 02_trim_fastq.smk
 - **move_umi**: moves umis from read to name uisng Fastp
@@ -163,14 +159,12 @@ Use these configuration options to customize and configure your Majel pipeline f
 
 - **merge_fastq**: merges r1 fastqs together and r2 fastqs together  
 
-<br>
 
 ### 03_align_fastq.smk
 - **bismark_align**: aligns fastq sequences using Bismark to produce a BAM file
 
 - **sort_bam**: sorts BAM file produced by Bismark  
 
-<br>
 
 ### 03_bismark2report.smk
 - **bismark_deduplicate**: used only for bismark2report: deduplicates BAM file
@@ -179,38 +173,32 @@ Use these configuration options to customize and configure your Majel pipeline f
 
 - **bismark2report**: produces Bismark html report  
 
-<br>
 
 ### 04_deduplicate_bam.smk
 - **deduplicate_bam**: deduplicates reads in sorted BAM using Gencore for UMI support
 
 - **merge_deduplicate_bams**: merges deduplicated CT and GA BAMs  
 
-<br>
 
 ### 05_call_methylation.smk
 - **call_methylation**: calls cytosine methylation using MethylDackel for downstream analysis  
 
-<br>
 
 ### 06_call_variants.smk
 - **mask_converted_bases**: masks base positions in BAM potentially affected by cytosine conversion
 
 - **call_variants**: calls variants from cytosine converted data  
 
-<br>
 
 ### 07_calculate_statistics.smk
 - **calculate_coverage**: calculates sequencing coverage statistics
 
 - **calculate_conversion**: calculates cytosine conversion statistics  
 
-<br>
 
 ### 08_methylseekr_and_TDF.smk
 - **methylseekr_and_TDF**: calls UMRs and LMRs with and without PMDs, produces TDF file for IGV  
 
-<br>
 
 ### 09_majel_cleanup.smk
 - **cleanup**: removes temporary files, restructures ouput directories, and zips text files
