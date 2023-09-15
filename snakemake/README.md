@@ -58,9 +58,9 @@ To run the Majel pipeline:
 
    mamba activate majel
    ```
-
-> **Note**: Snakemake will automatically manage the creation of Conda environments and execution of rules. However, if modifications need be made to the Conda environments, `conda_prefix` will need to be changed. You can also use your own Mamba install and skip this step. In which case, use `snakemake/workflow/envs/majel.yaml` to install the Majel environment on your Mamba install.  
-<br>
+<div style="margin-left: 40px;">
+**Note**: Snakemake will automatically manage the creation of Conda environments and execution of rules. However, if modifications need be made to the Conda environments, `conda_prefix` will need to be changed. You can also use your own Mamba install and skip this step. In which case, use `snakemake/workflow/envs/majel.yaml` to install the Majel environment on your Mamba install.  
+</div>
 
 3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).
 
@@ -75,10 +75,11 @@ To run the Majel pipeline:
                                    [trim_lengths=<string, integer or semi-colon seperated list of integers] [umi_len=<integer>]
                                    [umi_loc=<string>] [umi_prefix=<string>] [whole_experiment=<boolean>]
                          ]
-   ```  
-> **Note**: `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`.
+   ```
+<div style="margin-left: 40px;">  
+**Note**: `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`.
 Alternatively, the `output_path` can be explicitly specified, regularless of where snakemake is run from. However, we advise copying/cloning this pipeline for each new project and outputing to the `snakemake/workflow`. The `rsync` option can then be used to transfer output to its final destination.
-
+</div>
 <br>  
 
 ## Configuration Options
