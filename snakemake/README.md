@@ -36,6 +36,7 @@ The pipeline comprises the following main components:
 - **Configuration:** The pipeline's behavior is governed by the `snakemake/config/config.yaml` file. This configuration file specifies reference genome paths, sample details, and other configuration options, detailed below.
 
 - **Workflow Control:** The `Snakefile` orchestrates the workflow by setting which rules to include and managing their dependencies.  
+
 <br>
 
 ## Usage
@@ -74,13 +75,14 @@ To run the Majel pipeline:
                                    [umi_loc=<string>] [umi_prefix=<string>] [whole_experiment=<boolean>]
                          ]
    ```  
-<br>
-**Note:** `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`.
+<br>  
+
+**Note**: `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`.
 Alternatively, the `output_path` can be explicitly specified, regularless of where snakemake is run from. However, we advise copying/cloning this pipeline for each new project and outputing to the `snakemake/workflow`. The `rsync` option can then be used to transfer output to its final destination.
 Snakemake will automatically manage the creation of Conda environments and execution of rules. However, if modifications need be made to the Conda environments, `conda_prefix` will need to be changed. 
 You can also use your own Conda/Mamba install and skip step 2.
 
-<br>
+<br>  
 
 ## Configuration Options
 
@@ -126,7 +128,7 @@ Placed after the snakemake `--config` option. Default options are set in the `sn
 
 - **umi_prefix**: Defines the prefix used by Fastp to paste in front of the UMI and by Gencore to identify the UMI. (e.g. `umi_prefix=UMI`)
 
-- **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the of the SRA specified in the file_prefixes option. This option will also automatically append that experiment accession to the sample name, and therefore only 'tissue_subtissue_healthStatus' needs to be provided as the sample_name. Also, if `project_dir` is not provided, this variable will be set to the SRA's study accession. **Note:** this option causes a delay in pipeline initation resulting from the SQL database search. (e.g. `whole_experiment=True`)
+- **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the of the SRA specified in the file_prefixes option. This option will also automatically append that experiment accession to the sample name, and therefore only 'tissue_subtissue_healthStatus' needs to be provided as the sample_name. Also, if `project_dir` is not provided, this variable will be set to the SRA's study accession. **Note**: this option causes a delay in pipeline initation resulting from the SQL database search. (e.g. `whole_experiment=True`)
 
 Use these configuration options to customize and configure your Majel pipeline for your specific sequencing data and analysis requirements.  
 
