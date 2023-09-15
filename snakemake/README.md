@@ -18,14 +18,12 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)  
-  
-  
+<br>  
 
 ## Introduction
 
 The Majel pipeline streamlines the analysis of DNA methylation sequencing data by automating SRA downloading, fastq trimming, sequence alignment, deduplication, methylation calling, variant detection and various QC analyses. The pipeline utilizes the Snakemake workflow management system to ensure efficient and reproducible execution, allow customizable HPC resource usage and foster modularity.  
-  
-  
+<br>
 
 ## Pipeline Components
 
@@ -64,7 +62,7 @@ To run the Majel pipeline:
 
 3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).  
 
-4. Navigate to the 'snakemake/workflow' directory and execute the following command:
+4. Navigate to the `snakemake/workflow` directory and execute the following command:
 
    ```bash
    snakemake --use-conda [--profile <string>] [--cores <integer>] [--dryrun] [--touch] [<other snakemake options>]
@@ -76,6 +74,12 @@ To run the Majel pipeline:
                                    [umi_loc=<string>] [umi_prefix=<string>] [whole_experiment=<boolean>]
                          ]
    ```  
+<br>
+**Note:** `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`.
+Alternatively, the `output_path` can be explicitly specified, regularless of where snakemake is run from. However, we advise copying/cloning this pipeline for each new project and outputing to the `snakemake/workflow`. The `rsync` option can then be used to transfer output to its final destination.
+Snakemake will automatically manage the creation of Conda environments and execution of rules. However, if modifications need be made to the Conda environments, `conda_prefix` will need to be changed. 
+You can also use your own Conda/Mamba install and skip step 2.
+
 <br>
 
 ## Configuration Options
@@ -122,73 +126,72 @@ Placed after the snakemake `--config` option. Default options are set in the `sn
 
 - **umi_prefix**: Defines the prefix used by Fastp to paste in front of the UMI and by Gencore to identify the UMI. (e.g. `umi_prefix=UMI`)
 
-- **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the of the SRA specified in the file_prefixes option. Note: causes a delay in pipeline initation resulting from the SQL database search. (e.g. `whole_experiment=True`)
+- **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the of the SRA specified in the file_prefixes option. This option will also automatically append that experiment accession to the sample name, and therefore only 'tissue_subtissue_healthStatus' needs to be provided as the sample_name. Also, if `project_dir` is not provided, this variable will be set to the SRA's study accession. **Note:** this option causes a delay in pipeline initation resulting from the SQL database search. (e.g. `whole_experiment=True`)
 
 Use these configuration options to customize and configure your Majel pipeline for your specific sequencing data and analysis requirements.  
 
-Snakemake will automatically manage the creation of Conda environments and execution of rules.  
 <br>
 
 ## Pipeline Rules
 
 ### Snakefile
-**all**: establishes all output files from all rules  
+- **all**: establishes all output files from all rules  
 <br>
 ### 00_transfer_ref_genome.smk
-**transfer_ref_genome**: transfers reference genome files to working directory when using an HPC job scheduling system  
+- **transfer_ref_genome**: transfers reference genome files to working directory when using an HPC job scheduling system  
 <br>
 ### 01_softlink_fastq.smk
-**softlink_fastq**: softlinks fastq files derived from `data_dir` and `file_prefixes` `--config` options  
+- **softlink_fastq**: softlinks fastq files derived from `data_dir` and `file_prefixes` `--config` options  
 <br> 
 ### 01_sra_download.smk
-**sra_download**: downloads run accessions specified in `file_prefixes` `--config` options
+- **sra_download**: downloads run accessions specified in `file_prefixes` `--config` options
 
-**sra_to_fastq**: converts sra files to fastqs  
+- **sra_to_fastq**: converts sra files to fastqs  
 <br>
 ### 02_trim_fastq.smk
-**move_umi**: moves umis from read to name uisng Fastp
+- **move_umi**: moves umis from read to name uisng Fastp
 
-**trim_fastq**: trims fastqs using trim_galore
+- **trim_fastq**: trims fastqs using trim_galore
 
-**merge_fastq**: merges r1 fastqs together and r2 fastqs together  
+- **merge_fastq**: merges r1 fastqs together and r2 fastqs together  
 <br>
 ### 03_align_fastq.smk
-**bismark_align**: aligns fastq sequences using Bismark to produce a BAM file
+- **bismark_align**: aligns fastq sequences using Bismark to produce a BAM file
 
-**sort_bam**: sorts BAM file produced by Bismark  
+- **sort_bam**: sorts BAM file produced by Bismark  
 <br>
 ### 03_bismark2report.smk
-**bismark_deduplicate**: used only for bismark2report: deduplicates BAM file
+- **bismark_deduplicate**: used only for bismark2report: deduplicates BAM file
 
-**bismark_methylation**: used only for bismark2report: calls cytosine methylation
+- **bismark_methylation**: used only for bismark2report: calls cytosine methylation
 
-**bismark2report**: produces Bismark html report  
+- **bismark2report**: produces Bismark html report  
 <br>
 ### 04_deduplicate_bam.smk
-**deduplicate_bam**: deduplicates reads in sorted BAM using Gencore for UMI support
+- **deduplicate_bam**: deduplicates reads in sorted BAM using Gencore for UMI support
 
-**merge_deduplicate_bams**: merges deduplicated CT and GA BAMs  
+- **merge_deduplicate_bams**: merges deduplicated CT and GA BAMs  
 <br>
 ### 05_call_methylation.smk
-**call_methylation**: calls cytosine methylation using MethylDackel for downstream analysis  
+- **call_methylation**: calls cytosine methylation using MethylDackel for downstream analysis  
 <br>
 ### 06_call_variants.smk
-**mask_converted_bases**: masks base positions in BAM potentially affected by cytosine conversion
+- **mask_converted_bases**: masks base positions in BAM potentially affected by cytosine conversion
 
-**call_variants**: calls variants from cytosine converted data  
+- **call_variants**: calls variants from cytosine converted data  
 <br>
 ### 07_calculate_statistics.smk
-**calculate_coverage**: calculates sequencing coverage statistics
+- **calculate_coverage**: calculates sequencing coverage statistics
 
-**calculate_conversion**: calculates cytosine conversion statistics  
+- **calculate_conversion**: calculates cytosine conversion statistics  
 <br>
 ### 08_methylseekr_and_TDF.smk
-**methylseekr_and_TDF**: calls UMRs and LMRs with and without PMDs, produces TDF file for IGV  
+- **methylseekr_and_TDF**: calls UMRs and LMRs with and without PMDs, produces TDF file for IGV  
 <br>
 ### 09_majel_cleanup.smk
-**cleanup**: removes temporary files, restructures ouput directories, and zips text files
+- **cleanup**: removes temporary files, restructures ouput directories, and zips text files
 
-**rsync**: moves final output to a specified directory  
+- **rsync**: moves final output to a specified directory  
 <br>
 
 ## Customization

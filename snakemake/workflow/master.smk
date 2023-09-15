@@ -186,6 +186,8 @@ for sample in D_sample_details:
                             L_sra_sizes = [int(mb) for mb in columns[3].split(',') if mb]
                 # Otherwise retrive info from SRA database
                 else:
+                    print_and_write('Searching SQL database for all SRA files with the same expreriment accession ' +
+                        '(i.e., same sample and experimental conditions from different sequencing runs')
                     # Connect to SQLite database
                     con = sqlite3.connect("/datasets/work/hb-meth-atlas/work/Data/level_2/SRAmetadb.sqlite")
                     cur = con.cursor()
@@ -212,7 +214,7 @@ for sample in D_sample_details:
                         ))
 
             # Update 'project_dir' in sample details if SQL run accessions are available
-            if SQL_run_accessions:
+            if SQL_run_accessions and not D_sample_details[sample]["project_dir"]:
                 D_sample_details[sample]["project_dir"] = study_accession
                 
                 # Generate a new sample name based on the experiment accession
