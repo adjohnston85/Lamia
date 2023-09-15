@@ -42,14 +42,14 @@ The pipeline comprises the following main components:
 ## Usage
 
 To run the Majel pipeline:
-1. Setup the slurm profile.
+1. **Setup the slurm profile**.
 
    ```bash
    mkdir -p ~/.config/snakemake/slurm/
 
    ln -s /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/config/slurm/config.yaml ~/.config/snakemake/slurm/config.yaml
    ```
-2. Activate the shared Conda install. 
+2. **Activate the shared Conda install**.
 
    ```bash
    source /datasets/work/hb-meth-atlas/work/pipeline_data/majel_conda/bin/activate
@@ -59,11 +59,11 @@ To run the Majel pipeline:
    mamba activate majel
    ```
 
-   Alternatively, install the majel environment (snakemake/workflow/envs/majel.yaml) on your own Mambaforge install.  
+**Note**: Snakemake will automatically manage the creation of Conda environments and execution of rules. However, if modifications need be made to the Conda environments, `conda_prefix` will need to be changed. You can also use your own Mamba install and skip this step. In which case, use `snakemake/workflow/envs/majel.yaml` to install the Majel environment on your Mamba install.  
 
-3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).  
+3. **Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository)**.
 
-4. Navigate to the `snakemake/workflow` directory and execute the following command:
+4. **Navigate to the `snakemake/workflow` directory and execute the following command**:
 
    ```bash
    snakemake --use-conda [--profile <string>] [--cores <integer>] [--dryrun] [--touch] [<other snakemake options>]
@@ -79,8 +79,6 @@ To run the Majel pipeline:
 
 **Note**: `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`.
 Alternatively, the `output_path` can be explicitly specified, regularless of where snakemake is run from. However, we advise copying/cloning this pipeline for each new project and outputing to the `snakemake/workflow`. The `rsync` option can then be used to transfer output to its final destination.
-Snakemake will automatically manage the creation of Conda environments and execution of rules. However, if modifications need be made to the Conda environments, `conda_prefix` will need to be changed. 
-You can also use your own Conda/Mamba install and skip step 2.
 
 <br>  
 
