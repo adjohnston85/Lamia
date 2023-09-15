@@ -42,14 +42,14 @@ The pipeline comprises the following main components:
 ## Usage
 
 To run the Majel pipeline:
-1. **Setup the slurm profile**.
+1. Setup the slurm profile.
 
    ```bash
    mkdir -p ~/.config/snakemake/slurm/
 
    ln -s /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/config/slurm/config.yaml ~/.config/snakemake/slurm/config.yaml
    ```
-2. **Activate the shared Conda install**.
+2. Activate the shared Conda install.
 
    ```bash
    source /datasets/work/hb-meth-atlas/work/pipeline_data/majel_conda/bin/activate
@@ -61,9 +61,9 @@ To run the Majel pipeline:
 
 **Note**: Snakemake will automatically manage the creation of Conda environments and execution of rules. However, if modifications need be made to the Conda environments, `conda_prefix` will need to be changed. You can also use your own Mamba install and skip this step. In which case, use `snakemake/workflow/envs/majel.yaml` to install the Majel environment on your Mamba install.  
 
-3. **Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository)**.
+3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).
 
-4. **Navigate to the `snakemake/workflow` directory and execute the following command**:
+4. Navigate to the `snakemake/workflow` directory and execute the following command:
 
    ```bash
    snakemake --use-conda [--profile <string>] [--cores <integer>] [--dryrun] [--touch] [<other snakemake options>]
@@ -134,25 +134,25 @@ Use these configuration options to customize and configure your Majel pipeline f
 
 ## Pipeline Rules
 
-### Snakefile
+Snakefile:
 - **all**: establishes all output files from all rules  
 
 
-### 00_transfer_ref_genome.smk
+00_transfer_ref_genome.smk:
 - **transfer_ref_genome**: transfers reference genome files to working directory when using an HPC job scheduling system  
 
 
-### 01_softlink_fastq.smk
+01_softlink_fastq.smk:
 - **softlink_fastq**: softlinks fastq files derived from `data_dir` and `file_prefixes` `--config` options  
 
  
-### 01_sra_download.smk
+01_sra_download.smk:
 - **sra_download**: downloads run accessions specified in `file_prefixes` `--config` options
 
 - **sra_to_fastq**: converts sra files to fastqs  
 
 
-### 02_trim_fastq.smk
+02_trim_fastq.smk:
 - **move_umi**: moves umis from read to name uisng Fastp
 
 - **trim_fastq**: trims fastqs using trim_galore
@@ -160,13 +160,13 @@ Use these configuration options to customize and configure your Majel pipeline f
 - **merge_fastq**: merges r1 fastqs together and r2 fastqs together  
 
 
-### 03_align_fastq.smk
+03_align_fastq.smk:
 - **bismark_align**: aligns fastq sequences using Bismark to produce a BAM file
 
 - **sort_bam**: sorts BAM file produced by Bismark  
 
 
-### 03_bismark2report.smk
+03_bismark2report.smk:
 - **bismark_deduplicate**: used only for bismark2report: deduplicates BAM file
 
 - **bismark_methylation**: used only for bismark2report: calls cytosine methylation
@@ -174,33 +174,33 @@ Use these configuration options to customize and configure your Majel pipeline f
 - **bismark2report**: produces Bismark html report  
 
 
-### 04_deduplicate_bam.smk
+04_deduplicate_bam.smk:
 - **deduplicate_bam**: deduplicates reads in sorted BAM using Gencore for UMI support
 
 - **merge_deduplicate_bams**: merges deduplicated CT and GA BAMs  
 
 
-### 05_call_methylation.smk
+05_call_methylation.smk:
 - **call_methylation**: calls cytosine methylation using MethylDackel for downstream analysis  
 
 
-### 06_call_variants.smk
+06_call_variants.smk:
 - **mask_converted_bases**: masks base positions in BAM potentially affected by cytosine conversion
 
 - **call_variants**: calls variants from cytosine converted data  
 
 
-### 07_calculate_statistics.smk
+07_calculate_statistics.smk:
 - **calculate_coverage**: calculates sequencing coverage statistics
 
 - **calculate_conversion**: calculates cytosine conversion statistics  
 
 
-### 08_methylseekr_and_TDF.smk
+08_methylseekr_and_TDF.smk:
 - **methylseekr_and_TDF**: calls UMRs and LMRs with and without PMDs, produces TDF file for IGV  
 
 
-### 09_majel_cleanup.smk
+09_majel_cleanup.smk:
 - **cleanup**: removes temporary files, restructures ouput directories, and zips text files
 
 - **rsync**: moves final output to a specified directory  
