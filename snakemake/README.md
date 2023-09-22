@@ -65,16 +65,18 @@ To run the Majel pipeline:
 4. Navigate to the `snakemake/workflow` directory and execute the following command:
 
    ```bash
-   snakemake --use-conda [--profile <string>] [--cores <integer>] [--dryrun] [--touch] [<other snakemake options>]
-                         [--config [account=<string>] [cleanup=<boolean>] [conda_prefix=<path>] [data_dir=<path>] [email=<string>]
-                                   [file_prefixes=<semi-colon seperated list>] [genome=<string>] [genome_dir=<path>]
-                                   [library_type=<string>] [maxins=<integer>] [non_directional=<boolean>] [output_path=<path>]
-                                   [project_dir=<string OR relative path>] [roi_bed=<file path>] [rsync=<path>] [run_file=<file path>]
-                                   [trim_lengths=<string, integer or semi-colon seperated list of integers] [umi_len=<integer>]
-                                   [umi_loc=<string>] [umi_prefix=<string>] [whole_experiment=<boolean>]
-                         ]
+   snakemake --use-conda --profile slurm [--cores <integer>] [--dryrun] [--touch] [<other snakemake options>]
+             [--config [account=<string>] [cleanup=<boolean>] [conda_prefix=<path>] [data_dir=<path>] [email=<string>]
+                       [file_prefixes=<semi-colon seperated list>] [genome=<string>] [genome_dir=<path>]
+                       [library_type=<string>] [maxins=<integer>] [non_directional=<boolean>] [output_path=<path>]
+                       [project_dir=<string OR relative path>] [roi_bed=<file path>] [rsync=<path>] [run_file=<file path>]
+                       [trim_lengths=<string, integer or semi-colon seperated list of integers] [umi_len=<integer>]
+                       [umi_loc=<string>] [umi_prefix=<string>] [whole_experiment=<boolean>]
+             ]
    ```
 - **Note**: `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`. Alternatively, the `output_path` can be explicitly specified, regularless of where snakemake is run from. However, we advise copying/cloning this pipeline for each new project and outputing to the `snakemake/workflow`. The `rsync` option can then be used to transfer output to its final destination.</p>
+
+<br>
 
 ## Configuration Options
 
@@ -147,7 +149,7 @@ Snakefile:
 
 
 02_trim_fastq.smk:
-- **move_umi**: moves umis from read to name uisng Fastp
+- **move_umi**: moves umis from read to name using Fastp
 
 - **trim_fastq**: trims fastqs using trim_galore
 
@@ -191,13 +193,13 @@ Snakefile:
 
 
 08_methylseekr_and_TDF.smk:
-- **methylseekr_and_TDF**: calls UMRs and LMRs with and without PMDs, produces TDF file for IGV  
+- **methylseekr_and_TDF**: calls UMRs and LMRs with and without PMDs, and produces TDF file for IGV  
 
 
 09_majel_cleanup.smk:
 - **cleanup**: removes temporary files, restructures ouput directories, and zips text files
 
-- **rsync**: moves final output to a specified directory  
+- **rsync**: moves final output to a specified directory
 
 <br>
 

@@ -30,6 +30,8 @@ rule deduplicate_bam:
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""
     shell:
+        "mkdir -p {wildcards.output_path}/{wildcards.sample}/04_deduplicate_bam \n\n"
+
         # Extract only the records for the CT or GA genome and create a new BAM file
         'samtools view -h {input} | grep -e "XG:Z:{wildcards.genome}" -e "@" '
         '| samtools view -bS - 1> {output.mG_bam} '

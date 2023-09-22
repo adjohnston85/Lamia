@@ -1,7 +1,7 @@
 # Create symbolic links for FASTQ files
 rule softlink_fastq:
     input:
-        lambda wcs: D_sample_details[wcs.sample]["run_files"][wcs.fastq_name],
+        lambda wcs: D_sample_details[wcs.sample]["fq_files"][wcs.fastq_name],
     output:
         "{output_path}/{sample}/01_sequence_files/{fastq_name}",
     threads: 1
@@ -13,4 +13,5 @@ rule softlink_fastq:
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition="--partition=io"  # Partition for job submission
     shell:
+        "mkdir -p {wildcards.output_path}/{wildcards.sample}/01_sequence_files \n"
         "ln -sf {input} {output} &>> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log"

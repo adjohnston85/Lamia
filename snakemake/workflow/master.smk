@@ -137,7 +137,8 @@ for sample in D_sample_details:
     new_sample_name = sample
     
     # Initialize dictionaries and lists for run files and trimmed fastq files
-    D_run_files = dict()
+    D_sample_details[sample]["fq_files"] = dict()
+    D_sample_details[sample]["sra_files"] = dict()
     D_trimmed_fqs = {"_fastp_1":[], "_fastp_2":[], "_fastp_1_val_1":[], "_fastp_2_val_2":[]}
     L_run_accessions = []
     
@@ -165,7 +166,7 @@ for sample in D_sample_details:
                 
                 # If match found, populate dictionaries
                 if match and base_file.startswith(prefix_base):
-                    D_run_files[base_file] = os.path.join(sample_path, base_file)
+                    D_sample_details[sample]["fq_files"][base_file] = os.path.join(sample_path, base_file)
                     fq_pair = match.group(1)
                     stem = base_file.split('.')[0]
                     D_trimmed_fqs["_fastp_{}".format(fq_pair)].append("{}_fastp_{}.fq.gz".format(stem, fq_pair))
@@ -178,12 +179,12 @@ for sample in D_sample_details:
                 if os.path.exists(F_sra_info_path):
                     with open(F_sra_info_path, 'r') as F_sra_info:
                         for line in F_sra_info:
-                            columns = line.strip().split('\t')
+                            columns = line.strip().split(',')
                             experiment_accession = columns[0]
                             study_accession = columns[1]
                             # Populate SQL_run_accessions from the file
-                            SQL_run_accessions = columns[2].split(',')
-                            L_sra_sizes = [int(mb) for mb in columns[3].split(',') if mb]
+                            SQL_run_accessions = columns[2].split(';')
+                            L_sra_sizes = [int(mb) for mb in columns[3].split(';') if mb]
                 # Otherwise retrive info from SRA database
                 else:
                     print_and_write('Searching SQL database for all SRA files with the same expreriment accession ' +
@@ -209,8 +210,14 @@ for sample in D_sample_details:
                     
                     # Write SRA info to file
                     with open(F_sra_info_path, 'w') as F_sra_info:
-                        F_sra_info.write("{}\t{}\t{}\t".format(
-                            experiment_accession, study_accession, ','.join(SQL_run_accessions)
+                        F_sra_info.write("{},{},{},".format(
+                            experiment_accession, study_accession, ';'.join(SQL_run_accessions)
+                        ))
+            else:
+                if not os.path.exists(F_sra_info_path):
+                    with open(F_sra_info_path, 'w') as F_sra_info:
+                        F_sra_info.write("{},{},{},".format(
+                            "unknown", "unknown", file_prefix + ";"
                         ))
 
             # Update 'project_dir' in sample details if SQL run accessions are available
@@ -264,9 +271,6 @@ for sample in D_sample_details:
     # Generate sample path and create necessary directories
     sample_path = os.path.join(D_sample_details[sample]["output_path"], new_sample_name)
     os.makedirs(os.path.join(sample_path, "logs", slurm), exist_ok=True)
-    os.makedirs(os.path.join(sample_path, "01_sequence_files/"), exist_ok=True)
-    os.makedirs(os.path.join(sample_path, "06_call_variants/beds"), exist_ok=True)
-    os.makedirs(os.path.join(sample_path, "06_call_variants/vcfs"), exist_ok=True)
 
     # Update SRA sizes if available
     if L_sra_sizes:
@@ -275,8 +279,10 @@ for sample in D_sample_details:
 
     # Iterate over each run accession to set file paths and get SRA sizes
     for run_accession in L_run_accessions:
-        # Update D_run_files dictionary with SRA paths
-        D_run_files[run_accession] = os.path.join(run_accession, run_accession + ".sra")
+        # Update file dictionaries with SRA paths
+        D_sample_details[sample]["sra_files"][run_accession] = os.path.join(run_accession, run_accession + ".sra")
+        D_sample_details[sample]["fq_files"][run_accession + "_1.fastq.gz"] = os.path.join(sample_path, "01_sequence_files", run_accession, run_accession + "_1.fastq.gz") 
+        D_sample_details[sample]["fq_files"][run_accession + "_2.fastq.gz"] = os.path.join(sample_path, "01_sequence_files", run_accession, run_accession + "_2.fastq.gz")
 
         # Update D_trimmed_fqs dictionary with fq.gz file paths
         for label in D_trimmed_fqs:
@@ -303,7 +309,6 @@ for sample in D_sample_details:
                 F_sra_info.write("{},".format(size_mb))
 
     # Update D_sample_details with run files and trimmed fastq files
-    D_sample_details[sample]["run_files"] = D_run_files
     D_sample_details[sample]["trimmed_fqs"] = D_trimmed_fqs
 
     # Determine trim profile for the sample based on library_type or trim_profile
@@ -429,20 +434,17 @@ def get_all_files(D_genomes, D_sample_details):
                 # Section 1: Handling sequence files (FASTQ and SRA)
                 # Outputs from the rule 'softlink_fastq' in 01_softlink_fastq.smk
                 ["{}/01_sequence_files/{}".format(sample_path, fq)
-                 for fq in D_sample_details[sample]["run_files"]
-                 if ".sra" not in D_sample_details[sample]["run_files"][fq]
+                 for fq in D_sample_details[sample]["fq_files"]
                 ],
         
                 # Outputs from the rule 'sra_download' in 01_sra_download.smk
-                ["{}/01_sequence_files/{}".format(sample_path, D_sample_details[sample]["run_files"][sra])
-                 for sra in D_sample_details[sample]["run_files"]
-                 if ".sra" in D_sample_details[sample]["run_files"][sra]
+                ["{}/01_sequence_files/{}".format(sample_path, D_sample_details[sample]["sra_files"][sra])
+                 for sra in D_sample_details[sample]["sra_files"]
                 ],
                 
                 # Outputs from the rule 'sra_to_fastq'
-                ["{}/01_sequence_files/{}_{}.fastq.gz".format(sample_path, run_accession, read)
-                 for read in ["1", "2"] for run_accession in D_sample_details[sample]["run_files"]
-                 if ".sra" in D_sample_details[sample]["run_files"][run_accession]
+                ["{0}/01_sequence_files/{1}/{1}_{2}.fastq.gz".format(sample_path, run_accession, read)
+                 for read in ["1", "2"] for run_accession in D_sample_details[sample]["sra_files"]
                 ],
         
                 # Section 2: Trimming FASTQ files
@@ -591,7 +593,7 @@ def get_all_files(D_genomes, D_sample_details):
 
 # Function to allocate memory for each thread used by a rule
 def get_mem_mb(wildcards, threads):
-    return threads * 2048 if threads > 1 else 4096
+    return threads * 2000 if threads > 1 else 4000
 
 # Function to determine the number of CPU cores to allocate to each sample
 def get_cpus(min_cpus, max_cpus):
@@ -629,10 +631,11 @@ def get_file_size_mb(wcs, L_file_paths):
 def get_time_min(wcs, infiles, rule, threads):
     # Dictionary mapping rule names to baseline CPU minutes required for each rule
     D_cpu_mins = {
-        "move_umis": 600,
-        "sra_download": 1200,
-        "trim_fastq": 600,
-        "bismark_deduplicate": 600,
+        "sra_download": 1,
+        "sra_to_fastq": 15,
+        "move_umis": 15,
+        "trim_fastq": 30,
+        "bismark_deduplicate": 60,
         "bismark_align": 4800,
         "mask_converted_bases":1200,
         "call_variants": 2400,
@@ -655,24 +658,24 @@ def get_time_min(wcs, infiles, rule, threads):
         threads_modifier = threads_modifier - diminisher * x
 
     # Estimate time for rules prior to fastq merging
-    if rule in ["move_umis", "sra_download", "trim_fastq"]:
+    if rule in ["move_umis", "sra_download", "sra_to_fastq", "trim_fastq"]:
         # If the input is an SRA file, get its size
-        try:
+        if "." not in infiles.r1:
             file_size_mb = get_file_size_mb(
-                wcs, infiles.r1
+                wcs, [infiles.r1]
             )
-        except:
+        else:
             # Get the file sizes of both fastq files
             L_file_paths = [infiles.r1, infiles.r2]
             file_size_mb = get_file_size_mb(wcs, L_file_paths)
     else:
         # For other rules, calculate the size based on all the starting run files
-        L_starting_run_files = [D_sample_details[wcs.sample]["run_files"][rf] for rf in D_sample_details[wcs.sample]["run_files"]]
+        L_starting_run_files = [D_sample_details[wcs.sample]["fq_files"][rf] for rf in D_sample_details[wcs.sample]["fq_files"]]
         file_size_mb = get_file_size_mb(wcs, L_starting_run_files)
 
     # Calculate estimated time in minutes per GB of data
     time_min = int(file_size_mb / 1000 * D_cpu_mins[rule] / int(threads_modifier))
-    
+
     # Set minimum and maximum time limits for the job
     if time_min < 5:
         return 5

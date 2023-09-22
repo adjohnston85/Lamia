@@ -34,6 +34,7 @@ rule call_methylation:
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""
     shell:
+        "mkdir -p {wildcards.output_path}/{wildcards.sample}/05_call_methylation \n\n"
         # MethylDackel is used for methylation extraction and metrics calculation
         "MethylDackel extract --CHH --CHG --minOppositeDepth 5 --maxVariantFrac 0.2 "
         "--opref {wildcards.output_path}/{wildcards.sample}/05_call_methylation/{wildcards.sample}_ROI_Conversion "

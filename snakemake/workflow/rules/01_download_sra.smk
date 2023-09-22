@@ -15,16 +15,17 @@ rule sra_download:
         partition="--partition=io"
     retries: 5
     shell:
+        "mkdir -p {wildcards.output_path}/{wildcards.sample}/01_sequence_files \n\n"
         "aria2c -c --auto-file-renaming=false -x 16 --dir=/ -o {output.r1} $(srapath "
         "{wildcards.r1}) &>> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log"
 
 # Convert SRA files to FASTQ format using parallel-fastq-dump
 rule sra_to_fastq:
     input:
-        r1="{output_path}/{sample}/01_sequence_files/{run_accession}/{run_accession}.sra",
+        r1="{output_path}/{sample}/01_sequence_files/{r1}/{r1}.sra",
     output:
-        "{output_path}/{sample}/01_sequence_files/{run_accession}_1.fastq.gz",
-        "{output_path}/{sample}/01_sequence_files/{run_accession}_2.fastq.gz",
+        r1="{output_path}/{sample}/01_sequence_files/{r1}/{r1}_1.fastq.gz",
+        r2="{output_path}/{sample}/01_sequence_files/{r1}/{r1}_2.fastq.gz",
     conda:
         "../envs/sra-tools.yaml"
     # Dynamic assignment of threads based on a custom function in master.smk
@@ -39,7 +40,7 @@ rule sra_to_fastq:
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition="--partition=io"
     shell:
-        "parallel-fastq-dump --split-files --threads {resources.cpus} "
-        "--gzip --outdir {wildcards.output_path}/{wildcards.sample}/01_sequence_files/ --sra-id {input} "
-        "--tmpdir {wildcards.output_path}/{wildcards.sample}/01_sequence_files/ "
-        "&>> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log"
+        "parallel-fastq-dump --split-files --threads {resources.cpus} --gzip "
+        "--outdir {wildcards.output_path}/{wildcards.sample}/01_sequence_files/{wildcards.r1} --sra-id {input} "
+        "--tmpdir {wildcards.output_path}/{wildcards.sample}/01_sequence_files/{wildcards.r1} "
+        "&>> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log \n\n"

@@ -28,6 +28,8 @@ rule mask_converted_bases:
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""
     shell:
+        "mkdir -p {wildcards.output_path}/{wildcards.sample}/06_call_variants/beds \n\n"
+        "mkdir -p {wildcards.output_path}/{wildcards.sample}/06_call_variants/vcfs \n\n"
         # Command to perform calmd operation using samtools, effectively recalibrating the MD and NM tags in BAM files
         "samtools calmd -b {input} {params.genome_fa} -@ {params.parallel} "
         "1> {output.calmd_bam} 2>> /dev/null \n\n"

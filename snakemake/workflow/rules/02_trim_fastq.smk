@@ -28,10 +28,10 @@ rule move_umis:
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition="",
-    # Shell command to run fastp with various flags and arguments, including capturing JSON and HTML reports.
     shell:
+        'mkdir -p {wildcards.output_path}/{wildcards.sample}/02_trim_fastq \n\n'
         'fastp -i {input.r1} -I {input.r2} '
-        '-o {output.r1} -O {output.r2} --thread={threads} -Q {params.umi_info} '
+        '-o {output.r1} -O {output.r2} --thread={threads} -Q {params.umi_info}'
         '--json={wildcards.output_path}/{wildcards.sample}/02_trim_fastq/{wildcards.prefix}{wildcards.suffix}.json '
         '--html={wildcards.output_path}/{wildcards.sample}/02_trim_fastq/{wildcards.prefix}{wildcards.suffix}.html '
         '&> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log'
@@ -53,7 +53,7 @@ rule trim_fastq:
         parallel=lambda wcs, threads: get_parallel(wcs, 4, threads),
     conda:
         "../envs/trim_galore.yaml"
-    threads: lambda wildcards: get_cpus(1,32) # Dynamic CPU assignment. Max limit is 32.
+    threads: lambda wildcards: get_cpus(1,32)
     resources:
         time_min=lambda wcs, input, threads: get_time_min(wcs, input, "trim_fastq", threads),
         cpus=lambda wcs, threads: threads,
