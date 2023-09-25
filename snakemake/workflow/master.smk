@@ -116,7 +116,6 @@ F_run_info = "snakemake_run_info.log"
 with open(F_run_info, "w"):  # Open and immediately close the file to ensure it's empty
     pass
 
-# Message template to be displayed and written
 message = "Running Majel snakemake pipeline on {} sample{} with the following parameters:\n"
 
 # Display and write the message with the number of samples
@@ -141,9 +140,6 @@ for sample in D_sample_details:
     D_sample_details[sample]["sra_files"] = dict()
     D_trimmed_fqs = {"_fastp_1":[], "_fastp_2":[], "_fastp_1_val_1":[], "_fastp_2_val_2":[]}
     L_run_accessions = []
-    
-    # Initialize SQL run accessions and SRA sizes to None
-    SQL_run_accessions = None
     L_sra_sizes = None
     
     # Iterate through the file prefixes of the sample
@@ -172,56 +168,53 @@ for sample in D_sample_details:
                     D_trimmed_fqs["_fastp_{}".format(fq_pair)].append("{}_fastp_{}.fq.gz".format(stem, fq_pair))
                     D_trimmed_fqs["_fastp_{0}_val_{0}".format(fq_pair)].append("{0}_fastp_{1}_val_{1}.fq.gz".format(stem, fq_pair))
         else:
-            # If 'whole_experiment' option is specified for a sample, get SRA info from SQL database
-            SQL_run_accessions = None
-            if D_sample_details[sample]["whole_experiment"]:
-                # If SRA info file exists retrive info
-                if os.path.exists(F_sra_info_path):
-                    with open(F_sra_info_path, 'r') as F_sra_info:
-                        for line in F_sra_info:
-                            columns = line.strip().split(',')
-                            experiment_accession = columns[0]
-                            study_accession = columns[1]
-                            # Populate SQL_run_accessions from the file
-                            SQL_run_accessions = columns[2].split(';')
-                            L_sra_sizes = [int(mb) for mb in columns[3].split(';') if mb]
-                # Otherwise retrive info from SRA database
-                else:
-                    print_and_write('Searching SQL database for all SRA files with the same expreriment accession ' +
-                        '(i.e., same sample and experimental conditions from different sequencing runs')
-                    # Connect to SQLite database
-                    con = sqlite3.connect("/datasets/work/hb-meth-atlas/work/Data/level_2/SRAmetadb.sqlite")
-                    cur = con.cursor()
-                    
-                    # Retrieve experiment accession for the given run accession
-                    cur.execute("SELECT experiment_accession FROM run WHERE run_accession=?", (file_prefix,))
-                    experiment_accessions = cur.fetchall()
-                    experiment_accession = experiment_accessions[0][0]
-                    
-                    # Retrieve all run accessions related to the experiment
-                    cur.execute("SELECT run_accession FROM run WHERE experiment_accession=?", (experiment_accession,))
-                    SQL_run_accessions = cur.fetchall()
-                    SQL_run_accessions = [run[0] for run in SQL_run_accessions]
-                    
-                    # Retrieve study accession related to the experiment
-                    cur.execute("SELECT study_accession FROM experiment WHERE experiment_accession=?", (experiment_accession,))
-                    study_accessions = cur.fetchall()
-                    study_accession = study_accessions[0][0]
-                    
-                    # Write SRA info to file
-                    with open(F_sra_info_path, 'w') as F_sra_info:
-                        F_sra_info.write("{},{},{},".format(
-                            experiment_accession, study_accession, ';'.join(SQL_run_accessions)
-                        ))
+            # If SRA info file exists retrive info
+            if os.path.exists(F_sra_info_path):
+                with open(F_sra_info_path, 'r') as F_sra_info:
+                    for line in F_sra_info:
+                        columns = line.strip().split(',')
+                        experiment_accession = columns[0]
+                        study_accession = columns[1]
+                        # Populate L_run_accessions from the file
+                        L_run_accessions = columns[2].split(';')
+                        L_sra_sizes = [int(mb) for mb in columns[3].split(';') if mb]
+            # Otherwise, if 'whole_experiment' option is specified for a sample, get SRA info from SQL database
+            elif D_sample_details[sample]["whole_experiment"]:
+                print_and_write('Searching SQL database for all SRA files with the same expreriment accession ' +
+                    '(i.e., same sample from different sequencing runs)', F_run_info, "a")
+                # Connect to SQLite database
+                con = sqlite3.connect("/datasets/work/hb-meth-atlas/work/Data/level_2/SRAmetadb.sqlite")
+                cur = con.cursor()
+                
+                # Retrieve experiment accession for the given run accession
+                cur.execute("SELECT experiment_accession FROM run WHERE run_accession=?", (file_prefix,))
+                experiment_accessions = cur.fetchall()
+                experiment_accession = experiment_accessions[0][0]
+                
+                # Retrieve all run accessions related to the experiment
+                cur.execute("SELECT run_accession FROM run WHERE experiment_accession=?", (experiment_accession,))
+                SQL_run_accessions = cur.fetchall()
+                L_run_accessions = [run[0] for run in SQL_run_accessions]
+                
+                # Retrieve study accession related to the experiment
+                cur.execute("SELECT study_accession FROM experiment WHERE experiment_accession=?", (experiment_accession,))
+                study_accessions = cur.fetchall()
+                study_accession = study_accessions[0][0]
+                
+                # Write SRA info to file
+                with open(F_sra_info_path, 'w') as F_sra_info:
+                    F_sra_info.write("{},{},{},".format(
+                        experiment_accession, study_accession, ';'.join(L_run_accessions)
+                    ))
             else:
                 if not os.path.exists(F_sra_info_path):
                     with open(F_sra_info_path, 'w') as F_sra_info:
-                        F_sra_info.write("{},{},{},".format(
-                            "unknown", "unknown", file_prefix + ";"
+                        F_sra_info.write("{0},{0},{1},".format(
+                            "unknown", file_prefix
                         ))
 
             # Update 'project_dir' in sample details if SQL run accessions are available
-            if SQL_run_accessions and not D_sample_details[sample]["project_dir"]:
+            if D_sample_details[sample]["whole_experiment"] and "project_dir" not in D_sample_details[sample]:
                 D_sample_details[sample]["project_dir"] = study_accession
                 
                 # Generate a new sample name based on the experiment accession
@@ -233,11 +226,7 @@ for sample in D_sample_details:
                 
                 # Store new sample name for replacement
                 D_replace_keys[sample] = new_sample_name
-                L_run_accessions = SQL_run_accessions
                 break
-            else:
-                # Append file_prefix to run accessions list if SQL_run_accessions is empty
-                L_run_accessions.append(file_prefix)
 
     # Check if the sample name follows the naming convention
     if len(new_sample_name.split("_")) < 4:
@@ -252,7 +241,8 @@ for sample in D_sample_details:
     # Configure genome directory and path based on whether the workflow is run locally
     if not workflow.run_local:
         D_sample_details[sample]["genome_dir"] = D_sample_details[sample]["output_path"]
-        D_sample_details[sample]["genome_path"] = os.path.join(D_sample_details[sample]["output_path"], D_sample_details[sample]["genome"])
+        D_sample_details[sample]["genome_path"] = os.path.join(D_sample_details[sample]["output_path"],
+            D_sample_details[sample]["genome"])
         slurm = "slurm"
     else:
         slurm = ""
@@ -260,7 +250,8 @@ for sample in D_sample_details:
     # Configure rsync path
     if D_sample_details[sample]["rsync"]:
         if not os.path.isabs(D_sample_details[sample]["rsync"]):
-            D_sample_details[sample]["rsync"] = os.path.join(D_sample_details[sample]["output_path"], D_sample_details[sample]["rsync"])
+            D_sample_details[sample]["rsync"] = os.path.join(D_sample_details[sample]["output_path"],
+                D_sample_details[sample]["rsync"])
         if project_dir:
             D_sample_details[sample]["rsync"] = os.path.join(D_sample_details[sample]["rsync"], project_dir)
 
@@ -272,6 +263,8 @@ for sample in D_sample_details:
     sample_path = os.path.join(D_sample_details[sample]["output_path"], new_sample_name)
     os.makedirs(os.path.join(sample_path, "logs", slurm), exist_ok=True)
 
+    print(L_run_accessions)
+    print(L_sra_sizes)
     # Update SRA sizes if available
     if L_sra_sizes:
         for i, run in enumerate(L_run_accessions):
@@ -281,8 +274,10 @@ for sample in D_sample_details:
     for run_accession in L_run_accessions:
         # Update file dictionaries with SRA paths
         D_sample_details[sample]["sra_files"][run_accession] = os.path.join(run_accession, run_accession + ".sra")
-        D_sample_details[sample]["fq_files"][run_accession + "_1.fastq.gz"] = os.path.join(sample_path, "01_sequence_files", run_accession, run_accession + "_1.fastq.gz") 
-        D_sample_details[sample]["fq_files"][run_accession + "_2.fastq.gz"] = os.path.join(sample_path, "01_sequence_files", run_accession, run_accession + "_2.fastq.gz")
+        D_sample_details[sample]["fq_files"][run_accession + "_1.fastq.gz"] = os.path.join(sample_path, "01_sequence_files",
+            run_accession, run_accession + "_1.fastq.gz") 
+        D_sample_details[sample]["fq_files"][run_accession + "_2.fastq.gz"] = os.path.join(sample_path, "01_sequence_files",
+            run_accession, run_accession + "_2.fastq.gz")
 
         # Update D_trimmed_fqs dictionary with fq.gz file paths
         for label in D_trimmed_fqs:
@@ -306,7 +301,7 @@ for sample in D_sample_details:
                 D_sra_xml = xmltodict.parse(sra_stat)
                 size_mb = int(D_sra_xml['Run']['Size']['@value']) // 1000**2
                 D_sra_sizes[run_accession] = size_mb
-                F_sra_info.write("{},".format(size_mb))
+                F_sra_info.write("{};".format(size_mb))
 
     # Update D_sample_details with run files and trimmed fastq files
     D_sample_details[sample]["trimmed_fqs"] = D_trimmed_fqs
