@@ -129,7 +129,7 @@ D_sra_sizes = dict()
 # Iterate through each sample in the sample details dictionary
 for sample in D_sample_details:
     # Define the SRA info file path for the current sample
-    F_sra_info_path = "{}/{}_sra_info.txt".format(D_sample_details[sample]["output_path"], sample)
+    F_sra_info_path = "{}/.snakemake/{}_sra_info.txt".format(D_sample_details[sample]["output_path"], sample)
     
     # Initialize variable for the new sample name 
     # Used for updating the keys of D_sample_details if the sample name is modified by this loop
@@ -180,8 +180,10 @@ for sample in D_sample_details:
                         L_sra_sizes = [int(mb) for mb in columns[3].split(';') if mb]
             # Otherwise, if 'whole_experiment' option is specified for a sample, get SRA info from SQL database
             elif D_sample_details[sample]["whole_experiment"]:
-                print_and_write('Searching SQL database for all SRA files with the same expreriment accession ' +
-                    '(i.e., same sample from different sequencing runs)', F_run_info, "a")
+                print_and_write('Searching SQL database for all SRA files with the same expreriment accession as ' +
+                    file_prefix +
+                    ' (i.e., same sample from different sequencing runs)',
+                    F_run_info, "a")
                 # Connect to SQLite database
                 con = sqlite3.connect("/datasets/work/hb-meth-atlas/work/Data/level_2/SRAmetadb.sqlite")
                 cur = con.cursor()
@@ -207,11 +209,7 @@ for sample in D_sample_details:
                         experiment_accession, study_accession, ';'.join(L_run_accessions)
                     ))
             else:
-                if not os.path.exists(F_sra_info_path):
-                    with open(F_sra_info_path, 'w') as F_sra_info:
-                        F_sra_info.write("{0},{0},{1},".format(
-                            "unknown", file_prefix
-                        ))
+                L_run_accessions.append(file_prefix)
 
             # Update 'project_dir' in sample details if SQL run accessions are available
             if D_sample_details[sample]["whole_experiment"] and "project_dir" not in D_sample_details[sample]:
@@ -263,8 +261,12 @@ for sample in D_sample_details:
     sample_path = os.path.join(D_sample_details[sample]["output_path"], new_sample_name)
     os.makedirs(os.path.join(sample_path, "logs", slurm), exist_ok=True)
 
-    print(L_run_accessions)
-    print(L_sra_sizes)
+    if not os.path.exists(F_sra_info_path):
+        with open(F_sra_info_path, 'w') as F_sra_info:
+            F_sra_info.write("{0},{0},{1},".format(
+            "unknown", L_run_accessions.join(";")
+            ))
+
     # Update SRA sizes if available
     if L_sra_sizes:
         for i, run in enumerate(L_run_accessions):
@@ -626,17 +628,19 @@ def get_file_size_mb(wcs, L_file_paths):
 def get_time_min(wcs, infiles, rule, threads):
     # Dictionary mapping rule names to baseline CPU minutes required for each rule
     D_cpu_mins = {
-        "sra_download": 1,
-        "sra_to_fastq": 15,
-        "move_umis": 15,
-        "trim_fastq": 30,
-        "bismark_deduplicate": 60,
-        "bismark_align": 4800,
-        "mask_converted_bases":1200,
-        "call_variants": 2400,
-        "call_methylation": 600,
-        "bismark_methylation": 600,
-        "deduplicate_bam": 600,
+        "sra_download": 10,
+        "sra_to_fastq": 150,
+        "move_umis": 20,
+        "trim_fastq": 100,
+        "bismark_align": 480,
+        "sort_bam": 30,
+        "deduplicate_bam": 50,
+        "bismark_deduplicate": 50,
+        "bismark_methylation": 200,
+        "mask_converted_bases":200,
+        "call_variants": 200,
+        "call_methylation": 25,
+        "methylseekr_and_TDF": 10,
         "cleanup": 10,
         "rsync": 50,
     }

@@ -62,6 +62,17 @@ To run the Majel pipeline:
 
 3. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).
 
+    ```bash
+    git clone https://bitbucket.csiro.au/scm/~loc100/majel_wgbspipline.git
+    ```
+
+    or
+
+    ```bash
+    rsync -av /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake /path/to/clone    
+    ```
+    
+
 4. Navigate to the `snakemake/workflow` directory and execute the following command:
 
    ```bash
