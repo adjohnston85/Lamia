@@ -17,13 +17,14 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 - [Output](#output)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
-- [License](#license)  
-    
+- [License](#license)
+- [Test Introduction](#test-anchor)
+<br>
 
 ## Introduction
 
 The Majel pipeline streamlines the analysis of DNA methylation sequencing data by automating SRA downloading, fastq trimming, sequence alignment, deduplication, methylation calling, variant detection and various QC analyses. The pipeline utilizes the Snakemake workflow management system to ensure efficient and reproducible execution, allow customizable HPC resource usage and foster modularity.  
-  
+<br> 
 
 ## Pipeline Components
 
@@ -36,16 +37,15 @@ The pipeline comprises the following main components:
 - **Configuration:** The pipeline's behavior is governed by the `snakemake/config/config.yaml` file. This configuration file specifies reference genome paths, sample details, and other configuration options, detailed below.
 
 - **Workflow Control:** The `Snakefile` orchestrates the workflow by setting which rules to include and managing their dependencies.  
-
-  
+<br>
 
 ## Usage
 
 To run the Majel pipeline:
 1. Connect to an HPC interative node.
-    ```bash
-    ssh ident@petrichor-i1.hpc.csiro.au
-    ```  
+   ```bash
+   ssh ident@petrichor-i1.hpc.csiro.au
+   ```  
 2. Setup the slurm profile.
    ```bash
    mkdir -p ~/.config/snakemake/slurm/
@@ -73,9 +73,9 @@ To run the Majel pipeline:
     git clone https://bitbucket.csiro.au/scm/~loc100/majel_wgbspipline.git    
     ```  
 5. Start a screen session.
-    ```bash
-    screen -S session_name
-    ```  
+   ```bash
+   screen -S session_name
+   ```  
 6. Navigate to the `snakemake/workflow` directory and execute the following command:
    ```bash
    snakemake --use-conda --profile slurm [--cores <integer>] [--dryrun] [--touch] [<other snakemake options>]
@@ -88,7 +88,7 @@ To run the Majel pipeline:
              ]
    ```
 - **Note**: `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`. Alternatively, the `output_path` can be explicitly specified, regularless of where snakemake is run from. However, we advise copying/cloning this pipeline for each new project and outputing to the `snakemake/workflow`. The `rsync` option can then be used to transfer output to its final destination.</p>  
-
+<br>
 
 ## Configuration Options
 
@@ -137,8 +137,7 @@ Placed after the snakemake `--config` option. Default options are set in the `sn
 - **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the of the SRA specified in the file_prefixes option. This option will also automatically append that experiment accession to the sample name, and therefore only 'tissue_subtissue_healthStatus' needs to be provided as the sample_name. Also, if `project_dir` is not provided, this variable will be set to the SRA's study accession. **Note**: this option causes a delay in pipeline initation resulting from the SQL database search. (e.g. `whole_experiment=True`)
 
 Use these configuration options to customize and configure your Majel pipeline for your specific sequencing data and analysis requirements.  
-
-  
+<br>
 
 ## Pipeline Rules
 
@@ -212,8 +211,7 @@ Snakefile:
 - **cleanup**: removes temporary files, restructures ouput directories, and zips text files
 
 - **rsync**: moves final output to a specified directory
-
-  
+<br>
 
 ## Customization
 
@@ -222,7 +220,7 @@ The pipeline is designed to be customizable:
 - **Adding Steps:** Extend the pipeline by adding new rules for additional analysis steps, following the pattern of existing rules.
 - **Configuration:** Modify `snakemake/config/config.yaml` or use `--config` to tailor parameters, paths, and settings to your specific analysis.
 - **Workflow Modification:** Adjust the `Snakefile` to control rule execution or introduce conditional logic.  
-  
+<br>  
 
 ## Output
 
@@ -236,22 +234,21 @@ Upon successful execution, the pipeline generates various outputs:
 - Log files  
 
 Default output path is the `snakemake/workflow` directory but can be customized as needed using the  `snakemake/config/config.yaml` file or `--config` option.  
-  
+<br>
 
 ## Troubleshooting
 
 - **Dependencies:** Ensure all required software and tools are installed. Snakemake will manage Conda environments specified in the `snakemake/worflow/envs` directory.
 - **Configuration:** Double-check paths, filenames, and parameters in the `snakemake/config/config.yaml` and `run_file` file.
 - **Error Handling:** Review logs generated in the `logs` directory for informative error messages in case of failures.  
-  
+<br>
 
 ## Contributing
 
 Contributions are welcome! Feel free to suggest improvements, new features, or report issues by opening an issue or submitting a pull request.  
-  
+<br>
 
 ## License
 
 This pipeline is released under the MIT License.
-  
-
+<a id="test-anchor"></a>
