@@ -28,7 +28,7 @@ rule bismark_align:
         # Resource constraints, dynamically calculated
         time_min=lambda wcs, input, threads: get_time_min(wcs, input, "bismark_align", threads),
         cpus=lambda wcs, threads: threads,
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 4096),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""
@@ -56,7 +56,7 @@ rule sort_bam:
     resources:
         time_min=lambda wcs, input, threads : get_time_min(wcs, input, "sort_bam", threads),
         cpus=lambda wcs, threads: threads,
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""
@@ -87,7 +87,7 @@ rule picard_metrics:
     resources:
         time_min=lambda wcs, input, threads : get_time_min(wcs, input, "picard_metrics", threads),
         cpus=lambda wcs, threads: threads,
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""

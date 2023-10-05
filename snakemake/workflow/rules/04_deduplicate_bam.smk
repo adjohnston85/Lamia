@@ -11,8 +11,7 @@ rule deduplicate_bam:
           if "roi_bed" in D_sample_details[wcs.sample] else "",
         # Path to reference genome's conversion FASTA
         r=lambda wcs: D_sample_details[wcs.sample]["genome_path"] + \
-          "/Bisulfite_Genome/" + D_sample_details[wcs.sample]["genome"] + \
-          "." + wcs.genome + "_conversion.fa",
+          "/Bisulfite_Genome/{wcs.genome}_conversion/genome_mfa.{wcs.genome}_conversion.fa",
         # UMI prefix dynamically obtained based on the sample
         umi_prefix=lambda wcs: get_umi_prefix(wcs.sample),
     log:
@@ -25,7 +24,7 @@ rule deduplicate_bam:
         # Dynamic resource allocation and user/account specific parameters
         time_min=lambda wcs, input, threads: get_time_min(wcs, input, "deduplicate_bam", threads),
         cpus=lambda wcs, threads: threads,
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""
@@ -64,7 +63,7 @@ rule merge_deduplicate_bams:
         # Dynamic resource allocation and user/account specific parameters
         time_min=lambda wcs, input, threads: get_time_min(wcs, input, "merge_deduplicate_bam", threads),
         cpus=lambda wcs, threads: threads,
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""

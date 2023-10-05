@@ -29,7 +29,7 @@ rule call_methylation:
     resources:
         time_min=lambda wcs, input, threads: get_time_min(wcs, input, "call_methylation", threads),
         cpus=lambda wcs, threads: threads,
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""

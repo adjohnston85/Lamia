@@ -9,7 +9,7 @@ rule cleanup:
         bam="{output_path}/{sample}/{sample}_sd.bam",
     resources:
         time_min=lambda wildcards, input, threads: get_time_min(wildcards, input, "cleanup", threads),
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         cpus=1,
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
@@ -95,7 +95,7 @@ rule rsync:
         rsync_path=lambda wcs: D_sample_details[wcs.sample]['rsync']
     resources:
         time_min=lambda wildcards, input, threads: get_time_min(wildcards, input, "rsync", threads),
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         cpus=1,
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],

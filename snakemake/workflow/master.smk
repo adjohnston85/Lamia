@@ -264,7 +264,7 @@ for sample in D_sample_details:
     if not os.path.exists(F_sra_info_path):
         with open(F_sra_info_path, 'w') as F_sra_info:
             F_sra_info.write("{0},{0},{1},".format(
-            "unknown", L_run_accessions.join(";")
+            "unknown", ";".join(L_run_accessions)
             ))
 
     # Update SRA sizes if available
@@ -317,6 +317,8 @@ for sample in D_sample_details:
     # Set trimming profiles based on the library type or user-input trim profile
     if trim_profile[0] == "em-seq":
         trim_profile = ["10", "10", "10", "10"]
+    elif trim_profile[0] == "methyl-prism":
+        trim_profile[0] == ["4", "4", "4", "6"]
     elif trim_profile[0] in ["swift", "bs-seq"]:
         trim_profile = ["10", "15", "10", "10"]
     elif trim_profile[0] == "no-trim":
@@ -513,10 +515,10 @@ def get_all_files(D_genomes, D_sample_details):
                 # Outputs from the rule 'mask_converted_bases' in 06_call_variants.smk
                 ["{}/06_call_variants/{}_sd_calmd{}".format(sample_path, sample, suffix)
                     for suffix in [".bam", ".bam.bai", "_masked.bam", "_masked.bam.bai"]
-                ],
+                ] if D_sample_details[sample]["call_variants"] else [],
                 
                 # Outputs from the rule 'call_variants'
-                ["{}/06_call_variants/{}_sd.vcf".format(sample_path, sample)],  # Variant calling file (VCF)
+                ["{}/06_call_variants/{}_sd.vcf".format(sample_path, sample)] if D_sample_details[sample]["call_variants"] else [],  # Variant calling file (VCF)
                 
                 # Section 7: Calculate statistics
                 # Outputs from the rule 'calculate_coverage' in 07_calculate_statistics.smk
@@ -589,8 +591,11 @@ def get_all_files(D_genomes, D_sample_details):
     return L_sample_files
 
 # Function to allocate memory for each thread used by a rule
-def get_mem_mb(wildcards, threads):
-    return threads * 2000 if threads > 1 else 4000
+def get_mem_mb(wildcards, threads, mem_per_core):
+    if threads == 1:
+        return threads * mem_per_core * 2
+    else:
+        return threads * mem_per_core
 
 # Function to determine the number of CPU cores to allocate to each sample
 def get_cpus(min_cpus, max_cpus):
@@ -619,7 +624,7 @@ def get_file_size_mb(wcs, L_file_paths):
         else:
             # If the file exists on the system, retrieve its size and convert to megabytes
             if os.path.exists(run_file):
-                size_mb += int(os.path.getsize(run_file) / 1000**2)
+                size_mb += int(os.path.getsize(run_file) / 1024**2)
                 
     # Return size in MB, with a minimum size of 1 MB if the file doesn't exist or is empty
     return size_mb if size_mb > 0 else 1
@@ -634,13 +639,13 @@ def get_time_min(wcs, infiles, rule, threads):
         "trim_fastq": 100,
         "bismark_align": 480,
         "sort_bam": 30,
-        "deduplicate_bam": 50,
         "bismark_deduplicate": 50,
-        "bismark_methylation": 200,
-        "mask_converted_bases":200,
+        "bismark_methylation": 30,
+        "mask_converted_bases":600,
         "call_variants": 200,
-        "call_methylation": 25,
-        "methylseekr_and_TDF": 10,
+        "call_methylation": 600,
+        "bismark_methylation": 600,
+        "deduplicate_bam": 600,
         "cleanup": 10,
         "rsync": 50,
     }
@@ -676,7 +681,9 @@ def get_time_min(wcs, infiles, rule, threads):
     time_min = int(file_size_mb / 1000 * D_cpu_mins[rule] / int(threads_modifier))
 
     # Set minimum and maximum time limits for the job
-    if time_min < 5:
+    if rule == "bismark_align" and time_min < 30:
+        return 30
+    elif time_min < 5:
         return 5
     elif time_min > 10080:  # Maximum time limit is 7 days in minutes
         return 10080

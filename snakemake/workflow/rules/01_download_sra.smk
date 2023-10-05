@@ -34,7 +34,7 @@ rule sra_to_fastq:
         # Calculate time limit based on a custom function in master.smk
         time_min=lambda wcs, input, threads: get_time_min(wcs, wcs, "sra_to_fastq", threads),
         # Fetch memory requirements from a custom function in master.smk
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads:get_mem_mb(wcs, threads, 2048),
         cpus=lambda wcs, threads: threads,
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],

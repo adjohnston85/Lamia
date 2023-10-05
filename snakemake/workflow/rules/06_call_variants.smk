@@ -13,7 +13,7 @@ rule mask_converted_bases:
         genome_fa=lambda wcs: D_sample_details[wcs.sample]["genome_path"] +
             '/' + D_sample_details[wcs.sample]["genome"] + '.fa',
         # Parallel threads for running samtools, one less than the total available threads
-        parallel = lambda wcs, threads: threads - 1,
+        parallel = lambda wcs, threads: threads - 1 if threads > 1 else 1,
     log:
         "{output_path}/{sample}/logs/{sample}_mask_converted_bases.log",
     conda:
@@ -23,27 +23,27 @@ rule mask_converted_bases:
         # Resource requirements foddr running the rule
         time_min=lambda wildcards, input, threads: get_time_min(wildcards, input, "mask_converted_bases", threads),
         cpus=lambda wildcards, threads: threads,
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""
     shell:
-        "mkdir -p {wildcards.output_path}/{wildcards.sample}/06_call_variants/beds \n\n"
+        "mkdir -p {wildcards.output_path}/{wildcards.sample}/06_call_variants/beds \n"
         "mkdir -p {wildcards.output_path}/{wildcards.sample}/06_call_variants/vcfs \n\n"
+
         # Command to perform calmd operation using samtools, effectively recalibrating the MD and NM tags in BAM files
         "samtools calmd -b {input} {params.genome_fa} -@ {params.parallel} "
         "1> {output.calmd_bam} 2>> /dev/null \n\n"
 
         # Index the calmd BAM file
         "samtools index -@ {params.parallel} {output.calmd_bam} &>> {log} \n\n"
-
+        
         # Python script to mask the converted bases in the calmd BAM file
         "python3 {workflow.basedir}/scripts/revelio.py -t {wildcards.output_path}/{wildcards.sample} "
         "-T {params.parallel} -Q {output.calmd_bam} {output.masked_bam} 2>> {log} \n\n"
 
         # Index the masked BAM file
         "samtools index -@ {params.parallel} {output.masked_bam} &>> {log}"
-
 
 # Rule calls variants using the FreeBayes tool for variant calling.
 rule call_variants:
@@ -84,7 +84,7 @@ rule call_variants:
         # Specify resource requirements.
         time_min=lambda wildcards, input, threads: get_time_min(wildcards, input, "call_variants", threads),
         cpus=lambda wildcards, threads: threads,
-        mem_mb=get_mem_mb,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
         email=lambda wcs: D_sample_details[wcs.sample]['email'],
         partition=""
@@ -119,4 +119,3 @@ rule call_variants:
         # Concatenate and merge VCF files using bcftools and vcfuniq to produce the final VCF output.
         bcftools concat {params.vcfs} | vcfuniq > {output} 2>> {log}
         """
-
