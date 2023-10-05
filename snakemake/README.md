@@ -8,17 +8,16 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 
 ## Table of Contents
 
-- [Introduction](#introduction)
-- [Pipeline Components](#pipeline-components)
-- [Usage](#usage)
-- [Configuration Options](#configuration-options)
-- [Pipeline Rules](#pipeline-rules)
-- [Customization](#customization)
-- [Output](#output)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-- [Test Introduction](#test-anchor)
+- [Introduction](#markdown-header-introduction)
+- [Pipeline Components](#markdown-header-pipeline-components)
+- [Usage](#markdown-header-usage)
+- [Configuration Options](#markdown-header-configuration-options)
+- [Pipeline Rules](#markdown-header-pipeline-rules)
+- [Customization](#markdown-header-customization)
+- [Output](#markdown-header-output)
+- [Troubleshooting](#markdown-header-troubleshooting)
+- [Contributing](#markdown-header-contributing)
+- [License](#markdown-header-license)
 <br>
 
 ## Introduction
@@ -251,4 +250,3 @@ Contributions are welcome! Feel free to suggest improvements, new features, or r
 ## License
 
 This pipeline is released under the MIT License.
-<a id="test-anchor"></a>
