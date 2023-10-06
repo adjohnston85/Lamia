@@ -1,10 +1,9 @@
 # Majel Snakemake Pipeline
 
 The Majel Snakemake pipeline automates the analysis of DNA methylation sequencing data. This README provides an in-depth overview of the pipeline, its rules, and instructions for usage.  
-  
 
 ![Majel DAG](../images/snakemake_dag.svg)  
-  
+<br>
 
 ## Table of Contents
 
@@ -18,10 +17,12 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
+<br>
 
 ## Introduction <a name="introduction"></a>
 
 The Majel pipeline streamlines the analysis of DNA methylation sequencing data by automating SRA downloading, fastq trimming, sequence alignment, deduplication, methylation calling, variant detection and various QC analyses. The pipeline utilizes the Snakemake workflow management system to ensure efficient and reproducible execution, allow customizable HPC resource usage and foster modularity.  
+<br>
 
 ## Pipeline Components <a name="pipeline-components"></a>
 
@@ -34,6 +35,7 @@ The pipeline comprises the following main components:
 - **Configuration:** The pipeline's behavior is governed by the `snakemake/config/config.yaml` file. This configuration file specifies reference genome paths, sample details, and other configuration options, detailed below.
 
 - **Workflow Control:** The `Snakefile` orchestrates the workflow by setting which rules to include and managing their dependencies.  
+<br>
 
 ## Usage <a name="usage"></a>
 
@@ -86,7 +88,7 @@ To run the Majel pipeline:
 - **Note**: `output_path` defaults to the working directory. Using the `-s` or `--snakefile` option, this pipeline can be run from (and thus output to) a directory that is not `snakemake/workflow`. Alternatively, the `output_path` can be explicitly specified, regularless of where snakemake is run from. However, we advise copying/cloning this pipeline for each new project and outputing to the `snakemake/workflow`. The `rsync` option can then be used to transfer output to its final destination.</p>  
 <br>
 
-## Configuration Options
+## Configuration Options <a name="configuration-options"></a>
 
 Placed after the snakemake `--config` option. Default options are set in the `snakemake/config/config.yaml` file. Options are specified without dashes and use equal signs to bridge with their values (e.g. `--config option1=value1 option2=value2`):
 
@@ -135,7 +137,7 @@ Placed after the snakemake `--config` option. Default options are set in the `sn
 Use these configuration options to customize and configure your Majel pipeline for your specific sequencing data and analysis requirements.  
 <br>
 
-## Pipeline Rules
+## Pipeline Rules <a name="pipeline-rules"></a>
 
 Snakefile:
 - **all**: establishes all output files from all rules  
@@ -209,7 +211,7 @@ Snakefile:
 - **rsync**: moves final output to a specified directory
 <br>
 
-## Customization
+## Customization <a name="customization"></a>
 
 The pipeline is designed to be customizable:
 
@@ -218,7 +220,7 @@ The pipeline is designed to be customizable:
 - **Workflow Modification:** Adjust the `Snakefile` to control rule execution or introduce conditional logic.  
 <br>  
 
-## Output
+## Output <a name="output"></a>
 
 Upon successful execution, the pipeline generates various outputs:
 
@@ -232,18 +234,18 @@ Upon successful execution, the pipeline generates various outputs:
 Default output path is the `snakemake/workflow` directory but can be customized as needed using the  `snakemake/config/config.yaml` file or `--config` option.  
 <br>
 
-## Troubleshooting
+## Troubleshooting <a name="troubleshooting"></a>
 
 - **Dependencies:** Ensure all required software and tools are installed. Snakemake will manage Conda environments specified in the `snakemake/worflow/envs` directory.
 - **Configuration:** Double-check paths, filenames, and parameters in the `snakemake/config/config.yaml` and `run_file` file.
 - **Error Handling:** Review logs generated in the `logs` directory for informative error messages in case of failures.  
 <br>
 
-## Contributing
+## Contributing <a name="contributing"></a>
 
 Contributions are welcome! Feel free to suggest improvements, new features, or report issues by opening an issue or submitting a pull request.  
 <br>
 
-## License
+## License <a name="license"></a>
 
 This pipeline is released under the MIT License.
