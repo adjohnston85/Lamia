@@ -16,7 +16,6 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
 - [Output](#output)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
-- [License](#license)
 <br>
 
 ## Introduction <a name="introduction"></a>
