@@ -7,22 +7,23 @@ The Majel Snakemake pipeline automates the analysis of DNA methylation sequencin
   
 
 ## Table of Contents
-[Introduction](#markdown-header-introduction)
-[Pipeline Components](#markdown-header-pipeline-components)
-[Usage](#markdown-header-usage)
-[Configuration Options](#markdown-header-configuration-options)
-[Pipeline Rules](#markdown-header-pipeline-rules)
-[Customization](#markdown-header-customization)
-[Output](#markdown-header-output)
-[Troubleshooting](#markdown-header-troubleshooting)
-[Contributing](#markdown-header-contributing)
-[License](#markdown-header-license)
 
-## Introduction
+- [Introduction](#introduction)
+- [Pipeline Components](#pipeline-components)
+- [Usage](#usage)
+- [Configuration Options](#configuration-options)
+- [Pipeline Rules](#pipeline-rules)
+- [Customization](#customization)
+- [Output](#output)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Introduction <a name="introduction"></a>
 
 The Majel pipeline streamlines the analysis of DNA methylation sequencing data by automating SRA downloading, fastq trimming, sequence alignment, deduplication, methylation calling, variant detection and various QC analyses. The pipeline utilizes the Snakemake workflow management system to ensure efficient and reproducible execution, allow customizable HPC resource usage and foster modularity.  
 
-## Pipeline Components
+## Pipeline Components <a name="pipeline-components"></a>
 
 The pipeline comprises the following main components:
 
@@ -34,7 +35,7 @@ The pipeline comprises the following main components:
 
 - **Workflow Control:** The `Snakefile` orchestrates the workflow by setting which rules to include and managing their dependencies.  
 
-## Usage
+## Usage <a name="usage"></a>
 
 To run the Majel pipeline:
 1. Connect to an HPC interative node.
