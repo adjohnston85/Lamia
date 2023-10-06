@@ -113,17 +113,17 @@ Placed after the snakemake `--config` option. Default options are set in the `sn
 
 - **non_directional**: This option is a boolean (true/false) flag that indicates whether the sequencing data is non-directional. (e.g., `non_directional=True`)
 
-- **output_path**: Defines the directory for pipeline output. Each sample with be given a directory within this directory. (e.g., `output_path=/path/to/output/directory`)
+- **output_path**: Defines the directory for pipeline output. Each sample is be given a directory within this directory. (e.g., `output_path=/path/to/output/directory`)
 
-- **project_dir**: Defines an additional directory for pipeline output reliative to the `output_path`. Used for sorting sample output into projects. (e.g. `project_dir=SRX1234567`)
+- **project_dir**: Defines an additional directory for pipeline output reliative to the `output_path`. Used for sorting sample output into projects. (e.g., `project_dir=SRX1234567`)
 
 - **roi_bed**: Specifies a BED file defining regions of interest (ROIs) in the genome. Used to calculate coverage and conversion statistics and defines the capture regions for Picard hybrid-selection (HS) metrics. (e.g., `roi_bed=/path/to/roi_bed.bed`)
 
 - **rsync**: Defines the path where the final pipeline output will be transferred. (e.g. `rsync=/path/to/final/destination`)
 
-- **run_file**: Specifies a tab-separated values (TSV) file with 3 columns for sample_name, data_dir, and file_prefixes values. Addtional columns can include any other configuration option, but must use the option=value configuration. (e.g., `run_file=/path/to/tsv/samples.tsv`)
+- **run_file**: Specifies a comma-separated values (CSV) file with 3 columns for sample_name, data_dir, and file_prefixes values. Addtional columns can include any other configuration option, but must use the option=value configuration. (e.g., `run_file=/path/to/csv/samples.csv`)
 
-- **trim_lengths**: Specifies the profile for number of base pairs trimmed from 5'and 3' ends of sequence reads (post adapter trimming). Defaults to value of library_type option. Options are: swift, em-seq, & no-trim, a single integer to cut from all ends, or a semi-colon seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3'). (e.g., `trim_lengths=em-seq` OR `trim_lengths=10` OR `trim_lengths=10;10;15;10`)
+- **trim_lengths**: Specifies the profile for number of base pairs trimmed from the 5'and 3' ends of sequence reads (post adapter trimming). Defaults to value of library_type option. Options are: swift, em-seq, & no-trim, a single integer to cut from all ends, or a semi-colon seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3'). (e.g., `trim_lengths=em-seq` OR `trim_lengths=10` OR `trim_lengths=10;10;15;10`)
 
 - **umi_len**: Sets the length of Unique Molecular Identifiers (UMIs) use by Gencore for deduplication. (e.g., `umi_len=8`)
 
@@ -131,7 +131,7 @@ Placed after the snakemake `--config` option. Default options are set in the `sn
 
 - **umi_prefix**: Defines the prefix used by Fastp to paste in front of the UMI and by Gencore to identify the UMI. (e.g. `umi_prefix=UMI`)
 
-- **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the of the SRA specified in the file_prefixes option. This option will also automatically append that experiment accession to the sample name, and therefore only 'tissue_subtissue_healthStatus' needs to be provided as the sample_name. Also, if `project_dir` is not provided, this variable will be set to the SRA's study accession. **Note**: this option causes a delay in pipeline initation resulting from the SQL database search. (e.g. `whole_experiment=True`)
+- **whole_experiment**: This option is a boolean (true/false) flag that controls whether all SRAs with the same experiment accession (i.e., different runs of the same sample) will be identified in an SQL database, downloaded and processed. If specified, only one SRA needs to be provided in the file_prefixes option. This option will also automatically append that experiment accession to the sample name, and therefore only 'tissue_subtissue_healthStatus' needs to be provided as the sample_name. Also, if `project_dir` is not provided, this variable will be set to the SRA's study accession. **Note**: this option causes a delay in pipeline initation resulting from the SQL database search. (e.g. `whole_experiment=True`)
 
 Use these configuration options to customize and configure your Majel pipeline for your specific sequencing data and analysis requirements.  
 <br>
@@ -207,16 +207,16 @@ Snakefile:
 09_majel_cleanup.smk:
 - **cleanup**: removes temporary files, restructures ouput directories, and zips text files
 
-- **rsync**: moves final output to a specified directory
+- **rsync**: moves final output from cleanup to a specified directory
 <br>
 
 ## Customization <a name="customization"></a>
 
-The pipeline is designed to be customizable:
+Majel is designed to be customizable:
 
 - **Adding Steps:** Extend the pipeline by adding new rules for additional analysis steps, following the pattern of existing rules.
 - **Configuration:** Modify `snakemake/config/config.yaml` or use `--config` to tailor parameters, paths, and settings to your specific analysis.
-- **Workflow Modification:** Adjust the `Snakefile` to control rule execution or introduce conditional logic.  
+- **Workflow Modification:** Adjust the `Snakefile` or `master.smk` to control rule execution, introduce conditional logic or add functions.  
 <br>  
 
 ## Output <a name="output"></a>
@@ -236,7 +236,7 @@ Default output path is the `snakemake/workflow` directory but can be customized 
 ## Troubleshooting <a name="troubleshooting"></a>
 
 - **Dependencies:** Ensure all required software and tools are installed. Snakemake will manage Conda environments specified in the `snakemake/worflow/envs` directory.
-- **Configuration:** Double-check paths, filenames, and parameters in the `snakemake/config/config.yaml` and `run_file` file.
+- **Configuration:** Double-check paths, filenames, and parameters in the `snakemake/config/config.yaml` and `run_file`.
 - **Error Handling:** Review logs generated in the `logs` directory for informative error messages in case of failures.  
 <br>
 
@@ -244,7 +244,3 @@ Default output path is the `snakemake/workflow` directory but can be customized 
 
 Contributions are welcome! Feel free to suggest improvements, new features, or report issues by opening an issue or submitting a pull request.  
 <br>
-
-## License <a name="license"></a>
-
-This pipeline is released under the MIT License.
