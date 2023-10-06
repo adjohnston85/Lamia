@@ -44,14 +44,12 @@ To run the Majel pipeline:
    ```bash
    ssh ident@petrichor-i1.hpc.csiro.au
    ```
-<br>
 2. Setup the slurm profile.
    ```bash
    mkdir -p ~/.config/snakemake/slurm/
 
    ln -s /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/config/slurm/config.yaml ~/.config/snakemake/slurm/config.yaml
    ```
-<br>
 3. Activate the shared Conda install.
    ```bash
    source /datasets/work/hb-meth-atlas/work/pipeline_data/majel_conda/bin/activate
@@ -61,7 +59,6 @@ To run the Majel pipeline:
    mamba activate majel
    ```
 - **Note**: Snakemake will automatically manage the creation of Conda environments and execution of rules. However, if modifications need be made to the Conda environments, `conda_prefix` will need to be changed. You can also use your own Mamba install and skip this step. In which case, use `snakemake/workflow/envs/majel.yaml` to install the Majel environment on your Mamba install.</p>  
-<br>
 4. Copy the snakemake directory into your own project folder (or clone Majel from the BitBucket repository).
     ```bash
     rsync -av /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake /path/to/clone
@@ -72,12 +69,10 @@ To run the Majel pipeline:
     ```bash
     git clone https://bitbucket.csiro.au/scm/~loc100/majel_wgbspipline.git    
     ```
-<br>
 5. Start a screen session.
    ```bash
    screen -S session_name
    ```
-<br>
 6. Navigate to the `snakemake/workflow` directory and execute the following command:
    ```bash
    snakemake --use-conda --profile slurm [--cores <integer>] [--dryrun] [--touch] [<other snakemake options>]
