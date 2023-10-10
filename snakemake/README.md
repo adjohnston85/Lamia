@@ -156,9 +156,7 @@ Snakefile:
 
 
 02_trim_fastq.smk:
-- **move_umi**: moves umis from read to name using Fastp
-
-- **trim_fastq**: trims fastqs using trim_galore
+- **trim_fastq**: moves umis from read to name and trims fastqs using Fastp
 
 - **merge_fastq**: merges r1 fastqs together and r2 fastqs together  
 
@@ -168,19 +166,8 @@ Snakefile:
 
 - **sort_bam**: sorts BAM file produced by Bismark  
 
-
-03_bismark2report.smk:
-- **bismark_deduplicate**: used only for bismark2report: deduplicates BAM file
-
-- **bismark_methylation**: used only for bismark2report: calls cytosine methylation
-
-- **bismark2report**: produces Bismark html report  
-
-
 04_deduplicate_bam.smk:
 - **deduplicate_bam**: deduplicates reads in sorted BAM using Gencore for UMI support
-
-- **merge_deduplicate_bams**: merges deduplicated CT and GA BAMs  
 
 
 05_call_methylation.smk:
@@ -196,7 +183,9 @@ Snakefile:
 07_calculate_statistics.smk:
 - **calculate_coverage**: calculates sequencing coverage statistics
 
-- **calculate_conversion**: calculates cytosine conversion statistics  
+- **calculate_stats**: calculates cytosine conversion statistics and converting MethylDackel and Gencore output for Bismark2report
+
+- **bismark2report**: produces Bismark html report
 
 
 08_methylseekr_and_TDF.smk:
