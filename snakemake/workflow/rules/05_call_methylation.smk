@@ -14,6 +14,9 @@ rule call_methylation:
         "{output_path}/{sample}/05_call_methylation/{sample}_ROI_Conversion_CHG.bedGraph",
         "{output_path}/{sample}/05_call_methylation/{sample}_ROI_Conversion_CpG.bedGraph",
         "{output_path}/{sample}/05_call_methylation/{sample}_sd_CpG.bedGraph",
+        CHH="{output_path}/{sample}/05_call_methylation/{sample}_CHH_mbias.txt",
+        CHG="{output_path}/{sample}/05_call_methylation/{sample}_CHG_mbias.txt",
+        CpG="{output_path}/{sample}/05_call_methylation/{sample}_CpG_mbias.txt",
     params:
         # Use regions of interest (ROI) if available, otherwise default to pre-defined CHH ROI
         ROI_path=lambda wcs: D_sample_details[wcs.sample]["roi_bed"]
@@ -44,17 +47,17 @@ rule call_methylation:
         # Generate mbias plots for CHH context
         "MethylDackel mbias --CHH --noCpG --txt -@ {threads} {params.genome_fa} "
         "{input} {wildcards.output_path}/{wildcards.sample}/05_call_methylation/{wildcards.sample}_CHH "
-        "&>> {log} \n\n"
+        "> {output.CHH} 2>> {log} \n\n"
 
         # Generate mbias plots for CHG context
         "MethylDackel mbias --CHG --noCpG --txt -@ {threads} {params.genome_fa} "
         "{input} {wildcards.output_path}/{wildcards.sample}/05_call_methylation/{wildcards.sample}_CHG "
-        "&>> {log} \n\n"
+        "> {output.CHG} 2>> {log} \n\n"
 
         # Generate mbias plots for CpG context
         "MethylDackel mbias --txt -@ {threads} {params.genome_fa} {input} "
         "{wildcards.output_path}/{wildcards.sample}/05_call_methylation/{wildcards.sample}_CpG "
-        "&>> {log} \n\n"
+        "> {output.CpG} 2>> {log} \n\n"
 
         # Generate overall methylation extract without context separation
         "MethylDackel extract -@ {threads} --mergeContext {params.genome_fa} {input} "

@@ -13,6 +13,7 @@ import time
 import xmltodict
 from statistics import mean
 from pathlib import Path
+import json
 
 # Load the configuration file specified in the YAML file located relative to the workflow directory
 configfile: os.path.join(workflow.basedir, "../config/config.yaml")
@@ -138,7 +139,7 @@ for sample in D_sample_details:
     # Initialize dictionaries and lists for run files and trimmed fastq files
     D_sample_details[sample]["fq_files"] = dict()
     D_sample_details[sample]["sra_files"] = dict()
-    D_trimmed_fqs = {"_fastp_1":[], "_fastp_2":[], "_fastp_1_val_1":[], "_fastp_2_val_2":[]}
+    D_trimmed_fqs = {"_fastp_1":[], "_fastp_2":[]}
     L_run_accessions = []
     L_sra_sizes = None
     
@@ -166,7 +167,6 @@ for sample in D_sample_details:
                     fq_pair = match.group(1)
                     stem = base_file.split('.')[0]
                     D_trimmed_fqs["_fastp_{}".format(fq_pair)].append("{}_fastp_{}.fq.gz".format(stem, fq_pair))
-                    D_trimmed_fqs["_fastp_{0}_val_{0}".format(fq_pair)].append("{0}_fastp_{1}_val_{1}.fq.gz".format(stem, fq_pair))
         else:
             # If SRA info file exists retrive info
             if os.path.exists(F_sra_info_path):
@@ -312,7 +312,7 @@ for sample in D_sample_details:
     if "trim_profile" not in D_sample_details[sample]:
         trim_profile = [D_sample_details[sample]["library_type"]]
     else:
-        trim_profile = str(D_sample_details[sample]["trim_profile"]).split(",")
+        trim_profile = str(D_sample_details[sample]["trim_profile"]).split("-")
 
     # Set trimming profiles based on the library type or user-input trim profile
     if trim_profile[0] == "em-seq":
@@ -329,11 +329,11 @@ for sample in D_sample_details:
             [int(x) for x in trim_profile]
         except:
             raise Exception("Invalid --trim_profile. Must be a single integer, "
-                            "comma separated list of 4 integers, or one of the "
-                            "following: em-seq, swift, no-trim")
+                            "dash (-) separated list of 4 integers, or one of the "
+                            "following: em-seq, methyl-prism, swift, no-trim")
 
     # List of Bismark trimming options
-    L_trim_options = ["--clip_R1 ", "--clip_R2 ", "--three_prime_clip_R1 ", "--three_prime_clip_R2 "]
+    L_trim_options = ["--trim_front1=", "--trim_front2=", "--trim_tail1=", "--trim_tail2="]
 
     # Initialize the 'trim_lengths' attribute in D_sample_details for the current sample
     D_sample_details[sample]["trim_lengths"] = ""
@@ -467,31 +467,12 @@ def get_all_files(D_genomes, D_sample_details):
                 "{}/03_align_fastq/{}_s.bam".format(sample_path, sample),
                 "{}/03_align_fastq/{}_s.bam.bai".format(sample_path, sample),
 
-                # Outputs from the rule 'bismark_deduplicate'
-                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated.bam".format(sample_path, sample),
-                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplication_report.txt".format(sample_path, sample),
-
-                # Outputs from the rule 'bismark_methylation'
-                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated.bismark.cov.gz".format(sample_path, sample),
-                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated.bedGraph.gz".format(sample_path, sample),
-                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt".format(sample_path, sample),
-                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.deduplicated.M-bias.txt".format(sample_path, sample),
-
-                # Outputs from the rule 'bismark2report'
-                "{}/03_align_fastq/{}_r1_bismark_bt2_PE_report.html".format(sample_path, sample),
-               
                 # Outputs from rule 'picard_metrics'
                 "{}/03_align_fastq/{}_insert_size_histogram.pdf".format(sample_path, sample),
                 "{}/03_align_fastq/{}_insert_size_metrics.txt".format(sample_path, sample),
                 "{}/03_align_fastq/{}_hs_metrics.txt".format(sample_path, sample), 
 
                 # Section 4: BAM deduplication and further processing
-                # Outputs from the rule 'deduplicate_bam' in 04_deduplicate_bam.smk
-                "{}/04_deduplicate_bam/{}_CT_genome.bam".format(sample_path, sample),
-                "{}/04_deduplicate_bam/{}_GA_genome.bam".format(sample_path, sample),
-                "{}/04_deduplicate_bam/{}_CT_genome_sd.bam".format(sample_path, sample),
-                "{}/04_deduplicate_bam/{}_GA_genome_sd.bam".format(sample_path, sample),
-                
                 # Outputs from the rule 'merge_deduplicate_bams'
                 "{}/04_deduplicate_bam/{}_sd.bam".format(sample_path, sample),
                 "{}/04_deduplicate_bam/{}_sd.bam.bai".format(sample_path, sample),
@@ -499,6 +480,9 @@ def get_all_files(D_genomes, D_sample_details):
                 # Section 5: Methylation calling and visualization
                 # Outputs from the rule 'call_methylation' in 05_call_methylation.smk
                 "{}/05_call_methylation/{}_sd_CpG.bedGraph".format(sample_path, sample),
+                "{}/05_call_methylation/{}_CHH_mbias.txt".format(sample_path, sample),
+                "{}/05_call_methylation/{}_CHG_mbias.txt".format(sample_path, sample),
+                "{}/05_call_methylation/{}_CpG_mbias.txt".format(sample_path, sample),
                 ],
 
                 ["{}/05_call_methylation/{}_ROI_Conversion_{}.bedGraph".format(sample_path, sample, mG)
@@ -524,9 +508,16 @@ def get_all_files(D_genomes, D_sample_details):
                 # Outputs from the rule 'calculate_coverage' in 07_calculate_statistics.smk
                 ["{}/07_calculate_statistics/{}_genomeCoverageBed.txt".format(sample_path, sample)],  # Genome coverage stats
                 
-                # Outputs from the rule 'calculate_conversion'
-                ["{}/07_calculate_statistics/{}_sd_conversion_and_coverage.txt".format(sample_path, sample)],  # Conversion and coverage stats
-                
+                # Outputs from the rule 'calculate_stats'
+                ["{}/07_calculate_statistics/{}_sd_conversion_and_coverage.txt".format(sample_path, sample),
+                 "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt".format(sample_path, sample),
+                 "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplicated.M-bias.txt".format(sample_path, sample),
+                 "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplication_report.txt".format(sample_path, sample),
+                ],
+
+                # Outputs from the rule 'bismark2report'
+                ["{}/07_calculate_statistics/{}_r1_bismark_bt2_PE_report.html".format(sample_path, sample)],
+
                 # Section 8: Further methylation analysis
                 # Outputs from methylation analysis in 08_methylseekr_and_TDF.smk
                 ["{}/08_methylseekr_and_TDF/{}_{}".format(sample_path, sample, suffix)
@@ -735,9 +726,107 @@ def calculate_vcf_files(wcs, file_dir, file_ext):
             file_list.append(bed)  # Append the path to the list
     return file_list  # Return the list of VCF file paths
 
+# Transform MethylDackel bedgraph output into format readable by bismark2report
+def transform_methylation(infile, outfile, D_conversion):
+    total_Cs = sum(sum(value) for value in D_conversion.values())
+    CpG_meth = D_conversion["CpG"][0]
+    CHG_meth = D_conversion["CHG"][0]
+    CHH_meth = D_conversion["CHH"][0]
+
+    CpG_CtoT = D_conversion["CpG"][1]
+    CHG_CtoT = D_conversion["CHG"][1]
+    CHH_CtoT = D_conversion["CHH"][1]
+
+    CpG_perc = format(CpG_meth/(CpG_meth+CpG_CtoT) * 100, '.1f')
+    CHG_perc = format(CHG_meth/(CHG_meth+CHG_CtoT) * 100, '.1f')
+    CHH_perc = format(CHH_meth/(CHH_meth+CHH_CtoT) * 100, '.1f')
+
+    with open(outfile, 'w') as f:
+        version = "MethylDackel"
+        f.write(infile + "\n\nParameters used to extract methylation information:\n" + version +
+            "\n\nFinal Cytosine Methylation Report\n=================================" +
+            "\nTotal number of C's analysed:\t" + str(total_Cs) +
+            "\n\nTotal methylated C's in CpG context:\t" + str(CpG_meth) +
+            "\nTotal methylated C's in CHG context:\t" + str(CHG_meth) +
+            "\nTotal methylated C's in CHH context:\t" + str(CHH_meth) +
+            "\n\nTotal C to T conversions in CpG context:\t" + str(CpG_CtoT) +
+            "\nTotal C to T conversions in CHG context:\t" + str(CHG_CtoT) +
+            "\nTotal C to T conversions in CHH context:\t" + str(CHH_CtoT) +
+            "\n\nC methylated in CpG context:\t" + CpG_perc +
+            "%\nC methylated in CHG context:\t" + CHG_perc +
+            "%\nC methylated in CHH context:\t" + CHH_perc + "%"
+        )
+
+# Create a text file to match the output of bismark deduplication for bismark2report
+def process_dedup_json(infile, outfile, bam):
+    # Read the JSON from the input file
+    with open(infile, 'r') as f:
+        data = json.load(f)
+
+    # Extract necessary data from JSON
+    total_reads = data["before_processing"]["total_reads"]
+    duplication_histogram = data["before_processing"]["duplication_level_histogram"]
+
+    # Do calculations
+    alignments_analyzed = int(total_reads / 2)
+    duplicated_alignments_removed = sum([duplication_histogram[i] * i for i in range(len(duplication_histogram))])
+    percentage_duplicated_removed = (duplicated_alignments_removed / alignments_analyzed) * 100
+    different_positions = sum(duplication_histogram[1:])
+    leftover_sequences = alignments_analyzed - duplicated_alignments_removed
+    percentage_leftover = (leftover_sequences / alignments_analyzed) * 100
+
+    # Create the results as a list of strings
+    results = [
+        "\nTotal number of alignments analysed in {}:\t{}".format(bam, alignments_analyzed),
+        "Total number duplicated alignments removed:\t{} ({:.2f}%)".format(duplicated_alignments_removed, percentage_duplicated_removed),
+        "Duplicated alignments were found at:\t{} different position(s)\n".format(different_positions),
+        "Total count of deduplicated leftover sequences:\t{} ({:.2f}% of total)".format(leftover_sequences, percentage_leftover)
+    ]
+
+    # Write the results to the output file
+    with open(outfile, 'w') as f:
+        for line in results:
+            f.write(line + '\n')
+
+# Transform MethylDackel mbias output into format readable by bismark2report 
+def transform_mbias(infile, outfile, context, w_option):
+    data = {}
+
+    with open(infile, 'r') as f:
+        # Skip the header
+        next(f)
+        
+        for line in f:
+            fields = line.strip().split()
+            strand, read, position = fields[0], int(fields[1]), int(fields[2])
+            nMethylated, nUnmethylated = int(fields[3]), int(fields[4])
+
+            if read not in data:
+                data[read] = {}
+
+            if position not in data[read]:
+                data[read][position] = {"methylated": 0, "unmethylated": 0}
+
+            data[read][position]["methylated"] += nMethylated
+            data[read][position]["unmethylated"] += nUnmethylated
+
+    with open(outfile, w_option) as out:
+        for read, positions in data.items():
+            out.write("{} context (R{})\n".format(context, read))
+            out.write("=" * (15 + len(str(read))) + "\n")
+            out.write("position\tcount methylated\tcount unmethylated\t% methylation\tcoverage\n")
+            
+            for pos, counts in sorted(positions.items()):
+                total = counts["methylated"] + counts["unmethylated"]
+                methylation = (counts["methylated"] / total) * 100
+
+                out.write("{}\t{}\t{}\t{:.2f}\t{}\n".format(pos, counts['methylated'], counts['unmethylated'], methylation, total))
+
+            out.write("\n")
+
 # Used by rule calculate_conversion to calculate the conversion rates
 # from a bedGraph file.
-def conversion_estimator(sample, context):
+def conversion_estimator(sample, context, D_conversion):
     # Constructs the full path to the bedGraph file based on the sample and context.
     bedgraph_name = "{0}/{1}/05_call_methylation/{1}_ROI_Conversion_{2}.bedGraph".format(
         D_sample_details[sample]["output_path"], sample, context
@@ -768,6 +857,8 @@ def conversion_estimator(sample, context):
             unmeth = float(L_columns[5])
             conversion = meth/(meth + unmeth)
             coverage = meth + unmeth
+            D_conversion[context][0] += int(meth)
+            D_conversion[context][1] += int(unmeth)
 
             # Update the dictionary with the new conversion and coverage data.
             if chromo in D_ROI_conversion:
@@ -788,7 +879,7 @@ def conversion_estimator(sample, context):
             L_chromo.extend([chromo + '_con', chromo + '_cov'])
 
     # Return the lists of conversion and coverage values and their identifiers.
-    return L_values, L_chromo
+    return [L_values, L_chromo], D_conversion
 
 # Used by onsuccess and onerror in Snakefile to copy relevant log information
 # to each sample's log files.

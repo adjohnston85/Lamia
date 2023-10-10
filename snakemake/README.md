@@ -122,7 +122,7 @@ Placed after the snakemake `--config` option. Default options are set in the `sn
 
 - **run_file**: Specifies a comma-separated values (CSV) file with 3 columns for sample_name, data_dir, and file_prefixes values. Addtional columns can include any other configuration option, but must use the option=value configuration. (e.g., `run_file=/path/to/csv/samples.csv`)
 
-- **trim_lengths**: Specifies the profile for number of base pairs trimmed from the 5'and 3' ends of sequence reads (post adapter trimming). Defaults to value of library_type option. Options are: swift, em-seq, & no-trim, a single integer to cut from all ends, or a semi-colon seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3'). (e.g., `trim_lengths=em-seq` OR `trim_lengths=10` OR `trim_lengths=10;10;15;10`)
+- **trim_lengths**: Specifies the profile for number of base pairs trimmed from the 5'and 3' ends of sequence reads (post adapter trimming). Defaults to value of library_type option. Options are: swift, em-seq, & no-trim, a single integer to cut from all ends, or a dash seperated list of 4 integers (R1 5', R2 5', R1 3', R2 3'). (e.g., `trim_lengths=em-seq` OR `trim_lengths=10` OR `trim_lengths=10-10-15-10`)
 
 - **umi_len**: Sets the length of Unique Molecular Identifiers (UMIs) use by Gencore for deduplication. (e.g., `umi_len=8`)
 

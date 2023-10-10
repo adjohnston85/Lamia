@@ -1,5 +1,5 @@
 # Rule moves Unique Molecular Identifiers (UMIs) to the read name using the fastp tool.
-rule move_umis:
+rule trim_fastq:
     input:
         # Input files come from a previous step located in the '01_sequence_files' directory.
         # Uses a variety of wildcard constraints for flexibility.
@@ -16,6 +16,7 @@ rule move_umis:
     # UMI information is dynamically obtained via a custom function called 'get_umi_info'.
     params:
         umi_info=lambda wcs: get_umi_info(wcs.sample),
+        trim_lens=lambda wcs: D_sample_details[wcs.sample]["trim_lengths"],
     conda:
         "../envs/fastp.yaml",
     # Dynamic CPU allocation. Max limit is 16.
@@ -30,41 +31,10 @@ rule move_umis:
         partition="",
     shell:
         'mkdir -p {wildcards.output_path}/{wildcards.sample}/02_trim_fastq \n\n'
-        'fastp -i {input.r1} -I {input.r2} '
-        '-o {output.r1} -O {output.r2} --thread={threads} -Q {params.umi_info}'
+        'fastp -i {input.r1} -I {input.r2} --detect_adapter_for_pe {params.trim_lens}'
+        '-o {output.r1} -O {output.r2} --thread={threads} {params.umi_info}'
         '--json={wildcards.output_path}/{wildcards.sample}/02_trim_fastq/{wildcards.prefix}{wildcards.suffix}.json '
         '--html={wildcards.output_path}/{wildcards.sample}/02_trim_fastq/{wildcards.prefix}{wildcards.suffix}.html '
-        '&> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log'
-
-
-# Rule performs quality and adapter trimming on paired-end FASTQ files using trim_galore.
-rule trim_fastq:
-    input:
-        r1="{output_path}/{sample}/02_trim_fastq/{prefix}_{read}1{suffix}_fastp_1.fq.gz",
-        r2="{output_path}/{sample}/02_trim_fastq/{prefix}_{read}2{suffix}_fastp_2.fq.gz",
-    output:
-        r1="{output_path}/{sample}/02_trim_fastq/{prefix}_{read}1{suffix}_fastp_1_val_1.fq.gz",
-        r2="{output_path}/{sample}/02_trim_fastq/{prefix}_{read}2{suffix}_fastp_2_val_2.fq.gz",
-    wildcard_constraints:
-        read = '[rR]?',
-        suffix = '_?.*',
-    params:
-        trim_lens=lambda wcs: D_sample_details[wcs.sample]["trim_lengths"],
-        parallel=lambda wcs, threads: get_parallel(wcs, 4, threads),
-    conda:
-        "../envs/trim_galore.yaml"
-    threads: lambda wildcards: get_cpus(1,32)
-    resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "trim_fastq", threads),
-        cpus=lambda wcs, threads: threads,
-        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
-        account=lambda wcs: D_sample_details[wcs.sample]['account'],
-        email=lambda wcs: D_sample_details[wcs.sample]['email'],
-        partition=""
-    shell:
-        'trim_galore --fastqc --fastqc_args "--noextract" --gzip '
-        '--cores {params.parallel} {params.trim_lens}--output_dir '
-        '{wildcards.output_path}/{wildcards.sample}/02_trim_fastq --paired {input.r1} {input.r2} '
         '&> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log'
 
 
@@ -72,9 +42,9 @@ rule trim_fastq:
 rule merge_fastq:
     input:
         r1=lambda wcs: expand(wcs.output_path + "/" + wcs.sample + "/02_trim_fastq/{trimmed_fq}", \
-                       trimmed_fq=D_sample_details[wcs.sample]["trimmed_fqs"]["_fastp_1_val_1"]),
+                       trimmed_fq=D_sample_details[wcs.sample]["trimmed_fqs"]["_fastp_1"]),
         r2=lambda wcs: expand(wcs.output_path + "/" + wcs.sample + "/02_trim_fastq/{trimmed_fq}", \
-                       trimmed_fq=D_sample_details[wcs.sample]["trimmed_fqs"]["_fastp_2_val_2"]),
+                       trimmed_fq=D_sample_details[wcs.sample]["trimmed_fqs"]["_fastp_2"]),
     output:
         r1="{output_path}/{sample}/02_trim_fastq/{sample}_r1.fq.gz",
         r2="{output_path}/{sample}/02_trim_fastq/{sample}_r2.fq.gz",

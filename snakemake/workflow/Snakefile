@@ -9,7 +9,6 @@ include: "rules/01_softlink_fastq.smk"
 include: "rules/01_download_sra.smk"
 include: "rules/02_trim_fastq.smk"
 include: "rules/03_align_fastq.smk"
-include: "rules/03_bismark2report.smk"
 include: "rules/04_deduplicate_bam.smk"
 include: "rules/05_call_methylation.smk"
 include: "rules/06_call_variants.smk"
@@ -26,7 +25,7 @@ localrules: \
     bismark2report, \
     calculate_coverage, \
     merge_fastq, \
-    calculate_conversion, \
+    calculate_stats, \
     cleanup, \
     rsync
 
