@@ -14,7 +14,6 @@ rule bismark_align:
     params:
         # Dynamic core allocation using threads divided by five due to how Bismark parallel works
         parallel = lambda wcs, threads: get_parallel(wcs, 5, threads),
-        # Flag for non-directional libraries
         non_directional = lambda wcs: "--non_directional " if D_sample_details[wcs.sample]["non_directional"] else "",
         # Max insert size - Bismark default is 500, Majel automatically sets to 1000 for em-seq library_tpe
         maxins = lambda wcs: D_sample_details[wcs.sample]["maxins"],

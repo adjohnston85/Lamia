@@ -14,6 +14,7 @@ import xmltodict
 from statistics import mean
 from pathlib import Path
 import json
+import fnmatch
 
 # Load the configuration file specified in the YAML file located relative to the workflow directory
 configfile: os.path.join(workflow.basedir, "../config/config.yaml")
@@ -139,7 +140,7 @@ for sample in D_sample_details:
     # Initialize dictionaries and lists for run files and trimmed fastq files
     D_sample_details[sample]["fq_files"] = dict()
     D_sample_details[sample]["sra_files"] = dict()
-    D_trimmed_fqs = {"_fastp_1":[], "_fastp_2":[]}
+    D_trimmed_fqs = {"_fastp_1_val_1":[], "_fastp_2_val_2":[]}
     L_run_accessions = []
     L_sra_sizes = None
     
@@ -162,11 +163,11 @@ for sample in D_sample_details:
                 match = re.match(r".*_[rR]*(1|2).*\.(f(ast)*q)\.?(gz)?$", base_file)
                 
                 # If match found, populate dictionaries
-                if match and base_file.startswith(prefix_base):
+                if match and (base_file.startswith(prefix_base) or fnmatch.fnmatch(base_file, prefix_base)):
                     D_sample_details[sample]["fq_files"][base_file] = os.path.join(sample_path, base_file)
                     fq_pair = match.group(1)
                     stem = base_file.split('.')[0]
-                    D_trimmed_fqs["_fastp_{}".format(fq_pair)].append("{}_fastp_{}.fq.gz".format(stem, fq_pair))
+                    D_trimmed_fqs["_fastp_{0}_val_{0}".format(fq_pair)].append("{0}_fastp_{1}_val_{1}.fq.gz".format(stem, fq_pair))
         else:
             # If SRA info file exists retrive info
             if os.path.exists(F_sra_info_path):
@@ -310,30 +311,30 @@ for sample in D_sample_details:
 
     # Determine trim profile for the sample based on library_type or trim_profile
     if "trim_profile" not in D_sample_details[sample]:
-        trim_profile = [D_sample_details[sample]["library_type"]]
-    else:
-        trim_profile = str(D_sample_details[sample]["trim_profile"]).split("-")
+        D_sample_details[sample]["trim_profile"] = D_sample_details[sample]["library_type"]
+        
+    trim_profile = str(D_sample_details[sample]["trim_profile"]).split("-")
 
     # Set trimming profiles based on the library type or user-input trim profile
-    if trim_profile[0] == "em-seq":
+    if trim_profile[0] == "em_seq":
         trim_profile = ["10", "10", "10", "10"]
-    elif trim_profile[0] == "methyl-prism":
-        trim_profile[0] == ["4", "4", "4", "6"]
-    elif trim_profile[0] in ["swift", "bs-seq"]:
+    elif trim_profile[0] == "methyl_prism":
+        trim_profile = ["4", "8", "4", "8"]
+    elif trim_profile[0] in ["swift", "bs_seq"]:
         trim_profile = ["10", "15", "10", "10"]
-    elif trim_profile[0] == "no-trim":
+    elif trim_profile[0] == "no_trim":
         trim_profile[0] = "0"
     else:
         # Validate if trim_profile consists of integers
         try:
             [int(x) for x in trim_profile]
         except:
-            raise Exception("Invalid --trim_profile. Must be a single integer, "
+            raise Exception(str(trim_profile) + " is an invalid --trim_profile. Must be a single integer, "
                             "dash (-) separated list of 4 integers, or one of the "
-                            "following: em-seq, methyl-prism, swift, no-trim")
-
-    # List of Bismark trimming options
-    L_trim_options = ["--trim_front1=", "--trim_front2=", "--trim_tail1=", "--trim_tail2="]
+                            "following: em_seq, methyl_prism, swift, no_trim")
+    
+    # List of Trim_galore trimming options
+    L_trim_options = ["--clip_R1 ", "--clip_R2 ", "--three_prime_clip_R1 ", "--three_prime_clip_R2 "]
 
     # Initialize the 'trim_lengths' attribute in D_sample_details for the current sample
     D_sample_details[sample]["trim_lengths"] = ""
