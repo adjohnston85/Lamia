@@ -1,5 +1,0 @@
-Config file /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/workflow/../config/config.yaml is extended by additional config specified via the command line.
-FileNotFoundError in file /datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/workflow/master.smk, line 94:
-[Errno 2] No such file or directory: '/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/workflow/samples_file.tsv'
-  File "/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/workflow/Snakefile", line 6, in <module>
-  File "/datasets/work/hb-meth-atlas/work/pipeline_data/majel_wgbspipline/main/snakemake/workflow/master.smk", line 94, in <module>
