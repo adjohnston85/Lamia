@@ -265,20 +265,20 @@ if(tolower(sample_data[1]) == "skin"){
 if(length(germ_layer) == 0){
   #run will break here and return exit status = 1 if naming is incorrect
   message(paste(Sys.time(), 'Rscript Error: File naming is outside of defined convention! Re-name and re-run!'))
-  quit(save = "no", status = 1)
-}else{
-  #fix the occasional issue with grep returning more than one germ_layer
-  if(length(germ_layer) > 1){
-    if(any(grepl("CML|CLL|ALL|[cC]ancer|[cC]arcinoma|[aA]denoma|[bB]lastoma|[nN]eoplasm|[tT]umor|[oO]ncocytoma|[iI]mmortal|[gG]lioma", sample_data))){
-      germ_layer = paste(germ_layer, "cancer", sep = "_")
-    }else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
-      germ_layer = "Stem"
-    }else{
-      germ_layer = germ_layer[-which(germ_layer == "Stem")]
-      germ_layer = germ_layer[length(germ_layer)]
-    }
+  germ_layer = "Unspecified"
+}
+#fix the occasional issue with grep returning more than one germ_layer
+if(length(germ_layer) > 1){
+  if(any(grepl("CML|CLL|ALL|[cC]ancer|[cC]arcinoma|[aA]denoma|[bB]lastoma|[nN]eoplasm|[tT]umor|[oO]ncocytoma|[iI]mmortal|[gG]lioma", sample_data))){
+    germ_layer = paste(germ_layer, "cancer", sep = "_")
+  }else if(any(grepl("iPSC|fetal|ESC|Multipotent|H1Derived", sample_data, ignore.case = TRUE))){
+    germ_layer = "Stem"
+  }else{
+    germ_layer = germ_layer[-which(germ_layer == "Stem")]
+    germ_layer = germ_layer[length(germ_layer)]
   }
 }
+
 #convert colours for cancer, fetal or stem cell derived samples
 if(any(grepl("CML|CLL|ALL|[cC]ancer|[cC]arcinoma|[aA]denoma|[bB]lastoma|[nN]eoplasm|[tT]umor|[oO]ncocytoma|[iI]mmortal|[gG]lioma", sample_data))){
   germ_layer = paste(germ_layer, "cancer", sep = "_")

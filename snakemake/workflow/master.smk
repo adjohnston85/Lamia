@@ -40,6 +40,16 @@ config["genome_path"] = os.path.join(config["genome_dir"],  config["genome"])
 # Process file_prefixes from the config. If not available, set to ["*"]
 config["file_prefixes"] = ["*"] if "file_prefixes" not in config else list(filter(None, re.split(' |;', config["file_prefixes"])))
 
+# List of UMIs, assuming it's manageable to place here directly; otherwise, consider an external file
+config["umi_list"] = (
+    "GAGACGAT TTCCAAGG CGCATGAT ACGGAACA CGGCTAAT GCTATCCT "
+    "TGGACTCT ATCCAGAG CTTAGGAC GTGCCATA TCGCTGTT TTCGTTGG "
+    "AAGCACTG GTCGAAGA ACCACGAT GATTACCG GCACAACT GCGTCATT "
+    "GAAGGAAG ACTGAGGT TGAAGACG GTTACGCA AGCGTGTT GATCGAGT "
+    "TTGCGAAG CTGTTGAC GATGTGTG ACGTTCAG TTGCAGAC CAATGTGG "
+    "ACGACTTG ACTAGGAG"
+)
+
 # If output_path is not set, use the current working directory
 if "output_path" not in config: config["output_path"] = os.getcwd()
 
@@ -146,28 +156,30 @@ for sample in D_sample_details:
     
     # Iterate through the file prefixes of the sample
     for file_prefix in D_sample_details[sample]["file_prefixes"]:
-        # Check if data directory is given or if the file prefix is an absolute path
+        # Determine the sample path
         if "data_dir" in D_sample_details[sample] or os.path.isabs(file_prefix):
-            # Determine the sample path
             if "data_dir" in D_sample_details[sample]:
                 sample_path = os.path.join(D_sample_details[sample]["data_dir"], os.path.dirname(file_prefix))
             else:
                 sample_path = os.path.dirname(file_prefix)
-            
+
             # Extract base of the file prefix
             prefix_base = os.path.basename(file_prefix)
-            
+
+            # Compile regex for file prefix
+            prefix_regex = re.compile(rf"{prefix_base}.*")  # Adjust this regex as needed
+
             # Loop through files in the sample path
             for base_file in os.listdir(sample_path):
                 # Use regex to find files matching a specific pattern
                 match = re.match(r".*_[rR]*(1|2).*\.(f(ast)*q)\.?(gz)?$", base_file)
-                
+
                 # If match found, populate dictionaries
-                if match and (base_file.startswith(prefix_base) or fnmatch.fnmatch(base_file, prefix_base)):
+                if match and prefix_regex.match(base_file):
                     D_sample_details[sample]["fq_files"][base_file] = os.path.join(sample_path, base_file)
                     fq_pair = match.group(1)
                     stem = base_file.split('.')[0]
-                    D_trimmed_fqs["_fastp_{0}_val_{0}".format(fq_pair)].append("{0}_fastp_{1}_val_{1}.fq.gz".format(stem, fq_pair))
+                    D_trimmed_fqs[f"_fastp_{fq_pair}_val_{fq_pair}"].append(f"{stem}_fastp_{fq_pair}_val_{fq_pair}.fq.gz")
         else:
             # If SRA info file exists retrive info
             if os.path.exists(F_sra_info_path):
@@ -183,7 +195,7 @@ for sample in D_sample_details:
             elif D_sample_details[sample]["whole_experiment"]:
                 print_and_write('Searching SQL database for all SRA files with the same expreriment accession as ' +
                     file_prefix +
-                    ' (i.e., same sample from different sequencing runs)',
+                    ' (i.e., same sample from different sequencing runs or lanes)',
                     F_run_info, "a")
                 # Connect to SQLite database
                 con = sqlite3.connect("/datasets/work/hb-meth-atlas/work/Data/level_2/SRAmetadb.sqlite")
@@ -205,6 +217,7 @@ for sample in D_sample_details:
                 study_accession = study_accessions[0][0]
                 
                 # Write SRA info to file
+                Path(F_sra_info_path).parent.mkdir(parents=True, exist_ok=True) 
                 with open(F_sra_info_path, 'w') as F_sra_info:
                     F_sra_info.write("{},{},{},".format(
                         experiment_accession, study_accession, ';'.join(L_run_accessions)
@@ -227,6 +240,17 @@ for sample in D_sample_details:
                 D_replace_keys[sample] = new_sample_name
                 break
 
+    # Sort the lists of files
+    D_trimmed_fqs["_fastp_1_val_1"].sort()
+    D_trimmed_fqs["_fastp_2_val_2"].sort()
+
+    # Debugging output to ensure proper pairing
+    for r1, r2 in zip(D_trimmed_fqs["_fastp_1_val_1"], D_trimmed_fqs["_fastp_2_val_2"]):
+        if not r1.replace('_R1', '').replace('.fq.gz', '') == r2.replace('_R2', '').replace('.fq.gz', ''):
+            print(f"Warning: Mismatched pair found - R1: {r1}, R2: {r2}")
+        else:
+            print(f"Paired: {r1} and {r2}")
+
     # Check if the sample name follows the naming convention
     if len(new_sample_name.split("_")) < 4:
        sys.exit('ERROR: sample_name "{}" is not within naming convention of tissue_subtissue_healthStatus_identifier')
@@ -247,12 +271,13 @@ for sample in D_sample_details:
         slurm = ""
 
     # Configure rsync path
-    if D_sample_details[sample]["rsync"]:
-        if not os.path.isabs(D_sample_details[sample]["rsync"]):
-            D_sample_details[sample]["rsync"] = os.path.join(D_sample_details[sample]["output_path"],
-                D_sample_details[sample]["rsync"])
+    rsync_path = D_sample_details[sample].get("rsync")
+    if rsync_path:
+        if not os.path.isabs(rsync_path):
+            rsync_path = os.path.join(D_sample_details[sample]["output_path"], rsync_path)
         if project_dir:
-            D_sample_details[sample]["rsync"] = os.path.join(D_sample_details[sample]["rsync"], project_dir)
+            rsync_path = os.path.join(rsync_path, project_dir)
+        D_sample_details[sample]["rsync"] = rsync_path
 
     # Update output path if project directory is available
     if project_dir:
@@ -360,6 +385,126 @@ for old_key, new_key in D_replace_keys.items():
     # Replace the old key with the new key, while keeping the associated values unchanged
     D_sample_details[new_key] = D_sample_details.pop(old_key)
 
+def generate_sample_outputs(sample_path, sample, details, cleanup_check, rsync_check):
+    outputs = []
+
+    # Section 1: Handling sequence files (FASTQ and SRA)
+    sequence_files = [
+        "{}/01_sequence_files/{}".format(sample_path, fq)
+        for fq in details.get("fq_files", [])
+    ] + [
+        "{}/01_sequence_files/{}".format(sample_path, details["sra_files"][sra])
+        for sra in details.get("sra_files", [])
+    ] + [
+        "{0}/01_sequence_files/{1}/{1}_{2}.fastq.gz".format(sample_path, run_accession, read)
+        for read in ["1", "2"] for run_accession in details.get("sra_files", [])
+    ]
+    outputs.extend(sequence_files)
+
+    # Section 2: Trimming FASTQ files
+    trimmed_files = [
+        "{}/02_trim_fastq/{}".format(sample_path, trimmed_fq)
+        for label in details.get("trimmed_fqs", {})
+        for trimmed_fq in details["trimmed_fqs"].get(label, [])
+    ] + [
+        "{}/02_trim_fastq/{}_r1.fq.gz".format(sample_path, sample),
+        "{}/02_trim_fastq/{}_r2.fq.gz".format(sample_path, sample)
+    ]
+    outputs.extend(trimmed_files)
+
+    # Section 3: Alignment with Bismark
+    alignment_files = [
+        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.bam".format(sample_path, sample),
+#        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.nonCG_removed_seqs.bam".format(sample_path, sample),
+#        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.non-conversion_filtering.txt".format(sample_path, sample),
+#:wq
+#        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.nonCG_filtered.bam".format(sample_path, sample),
+        "{}/03_align_fastq/{}_r1_bismark_bt2_PE_report.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.nucleotide_stats.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_s.bam".format(sample_path, sample),
+        "{}/03_align_fastq/{}_s.bam.bai".format(sample_path, sample),
+        "{}/03_align_fastq/{}_insert_size_histogram.pdf".format(sample_path, sample),
+        "{}/03_align_fastq/{}_insert_size_metrics.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_hs_metrics.txt".format(sample_path, sample)
+    ]
+    outputs.extend(alignment_files)
+
+    # Section 4: BAM deduplication and further processing
+    dedup_files = [
+#       "{}/04_deduplicate_bam/{}_CT_genome.bam".format(sample_path, sample),
+#       "{}/04_deduplicate_bam/{}_GA_genome.bam".format(sample_path, sample),
+#       "{}/04_deduplicate_bam/{}_CT_genome_reverted.bam".format(sample_path, sample),
+#       "{}/04_deduplicate_bam/{}_GA_genome_reverted.bam".format(sample_path, sample),
+#        "{}/04_deduplicate_bam/{}_CT_genome_masked.bam".format(sample_path, sample),
+#        "{}/04_deduplicate_bam/{}_GA_genome_masked.bam".format(sample_path, sample),
+#       "{}/04_deduplicate_bam/{}_reverted_s.bam".format(sample_path, sample),
+#       "{}/04_deduplicate_bam/{}_reverted_sd.bam".format(sample_path, sample),
+#        "{}/04_deduplicate_bam/{}_masked_s.bam".format(sample_path, sample),
+#        "{}/04_deduplicate_bam/{}_masked_sd.bam".format(sample_path, sample),
+#       "{}/04_deduplicate_bam/{}_sd_flagstat.txt".format(sample_path, sample),
+#       "{}/04_deduplicate_bam/{}_gencore.json".format(sample_path, sample),
+#       "{}/04_deduplicate_bam/{}_gencore.html".format(sample_path, sample),
+    ]
+    outputs.extend(dedup_files)
+
+    # Section 5: Methylation calling and visualization
+    methylation_files = [
+        "{}/05_call_methylation/{}_sd_CpG.bedGraph".format(sample_path, sample),
+        "{}/05_call_methylation/{}_CHH_mbias.txt".format(sample_path, sample),
+        "{}/05_call_methylation/{}_CHG_mbias.txt".format(sample_path, sample),
+        "{}/05_call_methylation/{}_CpG_mbias.txt".format(sample_path, sample)
+    ] + [
+        "{}/05_call_methylation/{}{}_ROI_Conversion_{}.bedGraph".format(sample_path, sample, suffix, mG)
+        for mG in ["CHH", "CHG", "CpG"]
+        for suffix in ["_sd", "_s"]
+    ] + [
+        "{}/05_call_methylation/{}_{}_{}.svg".format(sample_path, sample, context, strand)
+        for context in ["CHH", "CHG", "CpG"]
+        for strand in ["OT", "OB"]
+    ]
+    outputs.extend(methylation_files)
+
+    # Section 6: Variant calling
+    if details.get("call_variants"):
+        variant_files = [
+            "{}/06_call_variants/{}_sd_calmd{}".format(sample_path, sample, suffix)
+            for suffix in [".bam", ".bam.bai", "_masked.bam", "_masked.bam.bai"]
+        ] + [
+            "{}/06_call_variants/{}_sd.vcf".format(sample_path, sample)
+        ]
+        outputs.extend(variant_files)
+
+    # Section 7: Calculate statistics
+    stats_files = [
+        "{}/07_calculate_statistics/{}_s_genomeCoverageBed.txt".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_sd_genomeCoverageBed.txt".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_s_conversion_and_coverage.txt".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_sd_conversion_and_coverage.txt".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt".format(sample_path, sample),
+#        "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplication_report.txt".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_r1_bismark_bt2_PE_report.html".format(sample_path, sample)
+    ]
+    outputs.extend(stats_files)
+
+    # Section 8: Further methylation analysis
+    methyl_analysis_files = [
+        "{}/08_methylseekr_and_TDF/{}_{}".format(sample_path, sample, suffix)
+        for suffix in ["PMD.bed", "UMRLMR.bed", "wPMD_UMRLMR.bed", "sd_CpG.tdf"]
+    ]
+
+    outputs.extend(methyl_analysis_files)
+
+    # Section 9: Cleanup and finalization
+    # Outputs from the 'cleanup' rule in 09_majel_cleanup.smk
+    #if cleanup_check:
+    #    outputs.append(cleanup_check)  # Conditional output based on cleanup_check flag
+
+    # Outputs from the 'rsync' rule
+    #if rsync_check:
+    #    outputs.append("{}/rsync_complete.txt".format(sample_path)) # Conditional output based on rsync_check flag
+
+    return outputs
+
 # Function to get all files associated with each sample and genome
 # This function is used by rule 'all' in Snakemake workflow
 def get_all_files(D_genomes, D_sample_details):
@@ -385,26 +530,27 @@ def get_all_files(D_genomes, D_sample_details):
         os.makedirs(os.path.join(config["output_path"], genome, "logs", "slurm"), exist_ok=True)
 
     # Loop through each sample in sample details
-    for sample in D_sample_details:
+    for sample, details in D_sample_details.items():
         # Define sample-specific path
-        sample_path = os.path.join(D_sample_details[sample]["output_path"], sample)
+        sample_path = os.path.join(details["output_path"], sample)
 
         # Check if rsync is specified and create rsync_check accordingly
-        if D_sample_details[sample]["rsync"]:
+        rsync_path = details.get("rsync")
+        if rsync_path:
             rsync_check = "{0}/{1}/stats/methyldackel/{1}_ROI_Conversion_CpG.bedGraph.gz".format(
-                D_sample_details[sample]["rsync"], sample
+                details["rsync"], sample
             )
             # Enable cleanup for the sample
-            D_sample_details[sample]["cleanup"] = True
+            details["cleanup"] = True
         else:
             rsync_check = None
 
         # Check if cleanup is specified and create cleanup_check accordingly
-        if D_sample_details[sample]["cleanup"]:
+        if details["cleanup"]:
             cleanup_check = "{}/{}_sd_CpG.bedGraph.gz".format(
                 sample_path, sample
             )
-            D_sample_details[sample]["cleanup"] = cleanup_check
+            details["cleanup"] = cleanup_check
         else:
             cleanup_check = None
 
@@ -413,9 +559,9 @@ def get_all_files(D_genomes, D_sample_details):
 
         # Write sample name and details to the output file
         print_and_write("---------------------\nSample: {}\n---------------------".format(sample), output_file, "w")
-        for option, value in sorted(D_sample_details[sample].items()):
+        for option, value in sorted(details.items()):
             print_and_write("{}: {}".format(
-                option, D_sample_details[sample][option]), output_file, "a"
+                option, details[option]), output_file, "a"
             )
 
         # Handle the case where both --dryrun and --touch command-line options are specified
@@ -424,152 +570,37 @@ def get_all_files(D_genomes, D_sample_details):
 
         # Write an empty line to the output file
         print_and_write("", output_file, "a")
+		
         # Initialize an empty list for sample outputs
-        D_sample_details[sample]["sample_outputs"] = []
-        
-        # Use itertools.chain.from_iterable to flatten lists and extend the sample_outputs list
-        D_sample_details[sample]["sample_outputs"].extend(
-            itertools.chain.from_iterable([
-                
-                # Section 1: Handling sequence files (FASTQ and SRA)
-                # Outputs from the rule 'softlink_fastq' in 01_softlink_fastq.smk
-                ["{}/01_sequence_files/{}".format(sample_path, fq)
-                 for fq in D_sample_details[sample]["fq_files"]
-                ],
-        
-                # Outputs from the rule 'sra_download' in 01_sra_download.smk
-                ["{}/01_sequence_files/{}".format(sample_path, D_sample_details[sample]["sra_files"][sra])
-                 for sra in D_sample_details[sample]["sra_files"]
-                ],
-                
-                # Outputs from the rule 'sra_to_fastq'
-                ["{0}/01_sequence_files/{1}/{1}_{2}.fastq.gz".format(sample_path, run_accession, read)
-                 for read in ["1", "2"] for run_accession in D_sample_details[sample]["sra_files"]
-                ],
-        
-                # Section 2: Trimming FASTQ files
-                # Outputs from the rule 'trim_fastq' in 02_trim_fastq.smk
-                ["{}/02_trim_fastq/{}".format(sample_path, trimmed_fq)
-                    for label in D_trimmed_fqs
-                    for trimmed_fq in D_sample_details[sample]["trimmed_fqs"][label]
-                ],
-                
-                # Outputs from the rule 'merge_fastq'
-                ["{}/02_trim_fastq/{}_r1.fq.gz".format(sample_path, sample),
-                 "{}/02_trim_fastq/{}_r2.fq.gz".format(sample_path, sample),
-                
-                # Section 3: Alignment with Bismark
-                # Outputs from the rule 'bismark_align' in 03_bismark_align.smk
-                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.bam".format(sample_path, sample),
-                "{}/03_align_fastq/{}_r1_bismark_bt2_PE_report.txt".format(sample_path, sample),
-                "{}/03_align_fastq/{}_r1_bismark_bt2_pe.nucleotide_stats.txt".format(sample_path, sample),
-                
-                # Outputs from the rule 'sort_bam'
-                "{}/03_align_fastq/{}_s.bam".format(sample_path, sample),
-                "{}/03_align_fastq/{}_s.bam.bai".format(sample_path, sample),
-
-                # Outputs from rule 'picard_metrics'
-                "{}/03_align_fastq/{}_insert_size_histogram.pdf".format(sample_path, sample),
-                "{}/03_align_fastq/{}_insert_size_metrics.txt".format(sample_path, sample),
-                "{}/03_align_fastq/{}_hs_metrics.txt".format(sample_path, sample), 
-
-                # Section 4: BAM deduplication and further processing
-                # Outputs from the rule 'merge_deduplicate_bams'
-                "{}/04_deduplicate_bam/{}_sd.bam".format(sample_path, sample),
-                "{}/04_deduplicate_bam/{}_sd.bam.bai".format(sample_path, sample),
-                
-                # Section 5: Methylation calling and visualization
-                # Outputs from the rule 'call_methylation' in 05_call_methylation.smk
-                "{}/05_call_methylation/{}_sd_CpG.bedGraph".format(sample_path, sample),
-                "{}/05_call_methylation/{}_CHH_mbias.txt".format(sample_path, sample),
-                "{}/05_call_methylation/{}_CHG_mbias.txt".format(sample_path, sample),
-                "{}/05_call_methylation/{}_CpG_mbias.txt".format(sample_path, sample),
-                ],
-
-                ["{}/05_call_methylation/{}_ROI_Conversion_{}.bedGraph".format(sample_path, sample, mG)
-                    for mG in ["CHH", "CHG", "CpG"]  # Different contexts in DNA methylation
-                ],
-                
-                # Outputs for methylation visualization
-                ["{}/05_call_methylation/{}_{}_{}.svg".format(sample_path, sample, context, strand)
-                    for context in ["CHH", "CHG", "CpG"]  # Different contexts in DNA methylation
-                    for strand in ["OT", "OB"]  # Different DNA strands (Original Top, Original Bottom)
-                ],
-                
-                # Section 6: Variant calling
-                # Outputs from the rule 'mask_converted_bases' in 06_call_variants.smk
-                ["{}/06_call_variants/{}_sd_calmd{}".format(sample_path, sample, suffix)
-                    for suffix in [".bam", ".bam.bai", "_masked.bam", "_masked.bam.bai"]
-                ] if D_sample_details[sample]["call_variants"] else [],
-                
-                # Outputs from the rule 'call_variants'
-                ["{}/06_call_variants/{}_sd.vcf".format(sample_path, sample)] if D_sample_details[sample]["call_variants"] else [],  # Variant calling file (VCF)
-                
-                # Section 7: Calculate statistics
-                # Outputs from the rule 'calculate_coverage' in 07_calculate_statistics.smk
-                ["{}/07_calculate_statistics/{}_genomeCoverageBed.txt".format(sample_path, sample)],  # Genome coverage stats
-                
-                # Outputs from the rule 'calculate_stats'
-                ["{}/07_calculate_statistics/{}_sd_conversion_and_coverage.txt".format(sample_path, sample),
-                 "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt".format(sample_path, sample),
-                 "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplicated.M-bias.txt".format(sample_path, sample),
-                 "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplication_report.txt".format(sample_path, sample),
-                ],
-
-                # Outputs from the rule 'bismark2report'
-                ["{}/07_calculate_statistics/{}_r1_bismark_bt2_PE_report.html".format(sample_path, sample)],
-
-                # Section 8: Further methylation analysis
-                # Outputs from methylation analysis in 08_methylseekr_and_TDF.smk
-                ["{}/08_methylseekr_and_TDF/{}_{}".format(sample_path, sample, suffix)
-                    for suffix in ["PMD.bed", "UMRLMR.bed", "wPMD_UMRLMR.bed", "sd_CpG.tdf"]
-                ],
-                
-                # Section 9: Cleanup and finalization
-                # Outputs from the 'cleanup' rule in 09_majel_cleanup.smk
-                [cleanup_check] if cleanup_check else [],  # Conditional output based on cleanup_check flag
-                
-                # Outputs from the 'rsync' rule
-                ["{}/rsync_complete.txt".format(sample_path)] if rsync_check else []  # Conditional output based on rsync_check flag
-                ]))
+        details["sample_outputs"] = generate_sample_outputs(sample_path, sample, details, cleanup_check, rsync_check)
 
         # Check if the sample processing has already been completed
         if rsync_check:
-            D_sample_details[sample]["cleanup_inputs"] = []
-        
+            details["cleanup_inputs"] = []
+
             # Check if rsync has been completed
             if os.path.exists(rsync_check):
                 # If rsync is done, clear sample outputs and log the information
-                D_sample_details[sample]["sample_outputs"] = []
+                details["sample_outputs"] = []
                 print_and_write(sample + ": cleanup and rsync previously completed, nothing else to do\n", F_run_info, "a")
-            elif os.path.exists(cleanup_check):
-                # If only cleanup is done, specify rsync as the next step
-                D_sample_details[sample]["sample_outputs"] = ["{}/rsync_complete.txt".format(sample_path)]
-            else:
-                # If neither are done, prepare inputs for cleanup
-                D_sample_details[sample]["cleanup_inputs"] = D_sample_details[sample]["sample_outputs"][:-2]
         
         elif cleanup_check:
             # Check if cleanup has been completed
             if os.path.exists(cleanup_check):
                 # If cleanup is done and rsync not specified, clear sample outputs and inputs, and log the information
-                D_sample_details[sample]["sample_outputs"] = []
-                D_sample_details[sample]["cleanup_inputs"] = []
+                details["sample_outputs"] = []
+                details["cleanup_inputs"] = []
                 print_and_write(sample + ": cleanup previously completed and rsync not specified, nothing else to do\n", F_run_info, "a")
-            else:
-                # Prepare inputs for cleanup
-                D_sample_details[sample]["cleanup_inputs"] = D_sample_details[sample]["sample_outputs"][:-1]
-        
         else:
             # Clear cleanup inputs if neither cleanup nor rsync are specified
-            D_sample_details[sample]["cleanup_inputs"] = []
+            details["cleanup_inputs"] = []
         
         # Extend the list of sample files with the outputs for this sample
-        L_sample_files.extend(D_sample_details[sample]["sample_outputs"])
+        L_sample_files.extend(details["sample_outputs"])
         
         # Dry run option: Create empty files as placeholders for the expected outputs
         if "--dryrun" in sys.argv and "--touch" in sys.argv:
-            for file_path in D_sample_details[sample]["sample_outputs"]:
+            for file_path in details["sample_outputs"]:
                 # Create directories if they don't exist
                 directory = os.path.dirname(file_path)
                 os.makedirs(directory, exist_ok=True)
@@ -626,18 +657,20 @@ def get_time_min(wcs, infiles, rule, threads):
     # Dictionary mapping rule names to baseline CPU minutes required for each rule
     D_cpu_mins = {
         "sra_download": 10,
-        "sra_to_fastq": 150,
-        "move_umis": 20,
-        "trim_fastq": 100,
-        "bismark_align": 480,
-        "sort_bam": 30,
+        "sra_to_fastq": 500,
+        "trim_fastq": 400,
+        "bismark_align": 1400,
+        "sort_bam": 45,
         "bismark_deduplicate": 50,
         "bismark_methylation": 30,
         "mask_converted_bases":600,
         "call_variants": 200,
-        "call_methylation": 600,
+        "call_methylation": 400,
         "bismark_methylation": 600,
-        "deduplicate_bam": 600,
+        "deduplicate_bam": 5000,
+        "split_deaminated_genomes": 500,
+        "revert_deamination": 15000,
+        "merge_sort_reverted": 50,
         "cleanup": 10,
         "rsync": 50,
     }
@@ -671,6 +704,9 @@ def get_time_min(wcs, infiles, rule, threads):
 
     # Calculate estimated time in minutes per GB of data
     time_min = int(file_size_mb / 1000 * D_cpu_mins[rule] / int(threads_modifier))
+#    print("Rule: " + rule + " file: " + str(infiles) + " size_mb: " + str(file_size_mb) + 
+#        " threads_mod: " + str(threads_modifier) + " cpu_mins: " + str(D_cpu_mins[rule]) +
+#        " time_mins: " + str(time_min))
 
     # Set minimum and maximum time limits for the job
     if rule == "bismark_align" and time_min < 30:
@@ -827,17 +863,16 @@ def transform_mbias(infile, outfile, context, w_option):
 
 # Used by rule calculate_conversion to calculate the conversion rates
 # from a bedGraph file.
-def conversion_estimator(sample, context, D_conversion):
+def conversion_estimator(sample, context, D_conversion, suffix):
     # Constructs the full path to the bedGraph file based on the sample and context.
-    bedgraph_name = "{0}/{1}/05_call_methylation/{1}_ROI_Conversion_{2}.bedGraph".format(
-        D_sample_details[sample]["output_path"], sample, context
+    bedgraph_name = "{0}/{1}/05_call_methylation/{1}{2}_ROI_Conversion_{3}.bedGraph".format(
+        D_sample_details[sample]["output_path"], sample, suffix, context
     )
-    
     # Open the bedGraph file for reading.
     with open(bedgraph_name, 'r') as F_bedgraph:
-        # Initialize a dictionary to hold the conversion and coverage rates for each chromo (or region of interest).
+        # Initialize a dictionary to hold the conversion rates, mean_C_coverage, and total_Cs for each chromo (or region of interest).
         D_ROI_conversion = {}
-        
+
         # Loop over each line in the bedGraph file.
         for i, line in enumerate(F_bedgraph):
             # Skip the first line, which is usually the header.
@@ -846,7 +881,7 @@ def conversion_estimator(sample, context, D_conversion):
 
             # Split the line by tab characters into a list of columns.
             L_columns = line.strip().split("\t")
-            
+
             # Determine the chromo (chromosome or region of interest) based on whether an 'roi_bed' is specified.
             if "roi_bed" in D_sample_details[sample]:
                 chromo = "ROI"
@@ -856,31 +891,37 @@ def conversion_estimator(sample, context, D_conversion):
             # Extract methylation and unmethylation counts and calculate conversion and coverage.
             meth = float(L_columns[4])
             unmeth = float(L_columns[5])
-            conversion = meth/(meth + unmeth)
-            coverage = meth + unmeth
+            total_Cs = meth + unmeth
+            conversion = meth / total_Cs
             D_conversion[context][0] += int(meth)
             D_conversion[context][1] += int(unmeth)
 
-            # Update the dictionary with the new conversion and coverage data.
+            # Update the dictionary with the new conversion, mean_C_coverage, and total_Cs data.
             if chromo in D_ROI_conversion:
-                D_ROI_conversion[chromo]["conversion"].append(conversion)
-                D_ROI_conversion[chromo]["coverage"].append(coverage)
+                D_ROI_conversion[chromo]["conversion"][0] += unmeth
+                D_ROI_conversion[chromo]["conversion"][1] += total_Cs
+                D_ROI_conversion[chromo]["mean_C_coverage"].append(total_Cs)
+                D_ROI_conversion[chromo]["total_Cs"] += total_Cs
             else:
-                D_ROI_conversion[chromo] = {"conversion": [conversion], "coverage": [coverage]}
-        
+                D_ROI_conversion[chromo] = {"conversion": [unmeth, total_Cs], "mean_C_coverage": [total_Cs], "total_Cs": total_Cs}
+
         # Initialize lists to hold the return values.
         L_values = []
         L_chromo = []
 
-        # Loop over each chromo to calculate the mean conversion and coverage and populate the return lists.
+        # Loop over each chromo to calculate the mean conversion, mean_C_coverage, and total_Cs and populate the return lists.
         for chromo in D_ROI_conversion:
-            conversion = str(round(100 - mean(D_ROI_conversion[chromo]["conversion"]) * 100, 2)) + "%"
-            coverage = str(round(mean(D_ROI_conversion[chromo]["coverage"]), 2))
-            L_values.extend([conversion, coverage])
-            L_chromo.extend([chromo + '_con', chromo + '_cov'])
+            unmeth = D_ROI_conversion[chromo]["conversion"][0]
+            total_c = D_ROI_conversion[chromo]["conversion"][1]
+            conversion = str(round(unmeth / total_c * 100, 2)) + "%"
+            mean_C_coverage = str(round(mean(D_ROI_conversion[chromo]["mean_C_coverage"]), 2))
+            total_Cs = D_ROI_conversion[chromo]["total_Cs"]
+            L_values.extend([conversion, mean_C_coverage, str(total_Cs)])
+            L_chromo.extend([chromo + '_con', chromo + '_mean_C_cov', chromo + '_total_Cs'])
 
-    # Return the lists of conversion and coverage values and their identifiers.
+    # Return the lists of conversion, mean_C_coverage, total_Cs values and their identifiers, along with the updated D_conversion dictionary.
     return [L_values, L_chromo], D_conversion
+
 
 # Used by onsuccess and onerror in Snakefile to copy relevant log information
 # to each sample's log files.
@@ -939,7 +980,7 @@ def copy_log_to_sample(log):
 # after the pipeline is finished running.
 def remove_temp_files(sample, sample_details):
     # Check if cleanup or rsync options are enabled for this sample
-    if sample_details["cleanup"] or sample_details["rsync"]:
+    if sample_details.get("cleanup", False) or "rsync" in sample_details:
         # Iterate through the list of temporary input files to be cleaned
         for file_path in sample_details.get("cleanup_inputs", []):
             # Remove the file if it exists
@@ -962,5 +1003,5 @@ def remove_temp_files(sample, sample_details):
                     shutil.rmtree(dir_path)
     
     # Remove original output path if rsync option is enabled and path exists
-    if sample_details["rsync"] and os.path.exists(original_path):
+    if "rsync" in sample_details and os.path.exists(original_path):
         shutil.rmtree(original_path)

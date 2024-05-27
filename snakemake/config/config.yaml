@@ -12,8 +12,6 @@ umi_loc: per_read
 
 cleanup: False
 
-rsync: None
-
 call_variants: False
 
 email: username@email.com

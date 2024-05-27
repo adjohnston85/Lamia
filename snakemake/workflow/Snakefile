@@ -23,11 +23,8 @@ localrules: \
     softlink_fastq, \
     picard_metrics, \
     bismark2report, \
-    calculate_coverage, \
     merge_fastq, \
     calculate_stats, \
-    cleanup, \
-    rsync
 
 local_log = os.path.join(config['output_path'], 'snakemake')
 output_files = get_all_files(D_genomes, D_sample_details)
@@ -49,9 +46,21 @@ onsuccess:
     # Append the hidden snakemake log to a local log file
     shell("cat {log} >> {local_log}.log")
 
-    # Remove temporary files for each sample
-    for sample, sample_details in D_sample_details.items():
-        remove_temp_files(sample, sample_details)
+    # Iterate over the samples in the D_sample_details dictionary
+    for sample, details in D_sample_details.items():
+        output_path = details['output_path']
+        
+        # Perform rsync if the path is provided
+        if "rsync" in config:
+            rsync_path = config["rsync"]
+            perform_cleanup(sample, output_path)
+            perform_rsync(sample, output_path, rsync_path)
+        # Perform cleanup if the flag is set
+        elif config.get("cleanup", False):
+            perform_cleanup(sample, output_path)
+
+        # Remove temporary files for each sample
+        remove_temp_files(sample, details)
 
 onerror:
     # Copy relevant portion of log to the sample folder    

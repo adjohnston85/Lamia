@@ -37,7 +37,7 @@ rule trim_fastq:
         'trim_galore --fastqc --fastqc_args "--noextract" --gzip '
         '--cores {params.parallel} {params.trim_lens}--output_dir '
         '{wildcards.output_path}/{wildcards.sample}/02_trim_fastq --paired {params.fr1} {params.fr2} '
-        '&> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log\n\n'
+        '&>> {wildcards.output_path}/{wildcards.sample}/logs/{wildcards.sample}_{rule}.log\n\n'
         
         'rm {params.fr1} {params.fr2}'
 
