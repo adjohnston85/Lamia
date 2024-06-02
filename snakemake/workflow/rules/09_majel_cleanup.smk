@@ -1,11 +1,20 @@
-def perform_cleanup(sample, output_path):
+def perform_cleanup(sample, output_path, umi_len=None):
+    umi_len_check = "true" if umi_len else "false"
     shell(
         """
-        # Check if file exists before moving
-        if [ -e "{output_path}/{sample}/03_align_fastq/{sample}_s.bam" ]; then 
-            mv {output_path}/{sample}/03_align_fastq/{sample}_s.{{bam,bam.bai}} \
-                {output_path}/{sample}/ ; 
-        fi 
+        # Move BAM files based on umi_len condition
+        if [ "{umi_len_check}" = "false" ]; then
+            [ -d "{output_path}/{sample}/03_align_fastq" ] && \
+                mv {output_path}/{sample}/03_align_fastq/{sample}_fixed_mate_info.bam \
+                {output_path}/{sample}/ ;
+        else
+            [ -d "{output_path}/{sample}/03_align_fastq" ] && \
+                mv {output_path}/{sample}/03_align_fastq/{sample}_umi.bam \
+                {output_path}/{sample}/ ;
+            [ -d "{output_path}/{sample}/04_deduplicate_bam" ] && \
+                mv {output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_r1_bismark_bt2_pe.bam \
+                {output_path}/{sample}/ ;
+        fi
 
         # Check if directory exists before finding and removing files
         dir="{output_path}/{sample}/02_trim_fastq"; 
@@ -14,7 +23,8 @@ def perform_cleanup(sample, output_path):
         # Loop through subdirectories and check if they exist before removing files
         for subdir in 03_align_fastq 04_deduplicate_bam; do 
             dir="{output_path}/{sample}/$subdir"; 
-            [ -d "$dir" ] && find "$dir" -maxdepth 1 -name "*.bam*" -type f -exec rm {{}} +; 
+            [ -d "$dir" ] && find "$dir" -maxdepth 1 -name "*.bam*" ! -name "{sample}_consensus_clipped.bam" \
+                -exec rm {{}} +; 
         done
 
         # Check if directories exist before removing them

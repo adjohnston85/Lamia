@@ -150,7 +150,7 @@ for sample in D_sample_details:
     # Initialize dictionaries and lists for run files and trimmed fastq files
     D_sample_details[sample]["fq_files"] = dict()
     D_sample_details[sample]["sra_files"] = dict()
-    D_trimmed_fqs = {"_fastp_1_val_1":[], "_fastp_2_val_2":[]}
+    D_initial_fqs = {"R1":[], "R2":[]}
     L_run_accessions = []
     L_sra_sizes = None
     
@@ -179,7 +179,7 @@ for sample in D_sample_details:
                     D_sample_details[sample]["fq_files"][base_file] = os.path.join(sample_path, base_file)
                     fq_pair = match.group(1)
                     stem = base_file.split('.')[0]
-                    D_trimmed_fqs[f"_fastp_{fq_pair}_val_{fq_pair}"].append(f"{stem}_fastp_{fq_pair}_val_{fq_pair}.fq.gz")
+                    D_initial_fqs[f"R{fq_pair}"].append(base_file)
         else:
             # If SRA info file exists retrive info
             if os.path.exists(F_sra_info_path):
@@ -241,12 +241,16 @@ for sample in D_sample_details:
                 break
 
     # Sort the lists of files
-    D_trimmed_fqs["_fastp_1_val_1"].sort()
-    D_trimmed_fqs["_fastp_2_val_2"].sort()
+    D_initial_fqs["R1"].sort()
+    D_initial_fqs["R2"].sort()
 
     # Debugging output to ensure proper pairing
-    for r1, r2 in zip(D_trimmed_fqs["_fastp_1_val_1"], D_trimmed_fqs["_fastp_2_val_2"]):
-        if not r1.replace('_R1', '').replace('.fq.gz', '') == r2.replace('_R2', '').replace('.fq.gz', ''):
+    for r1, r2 in zip(D_initial_fqs["R1"], D_initial_fqs["R2"]):
+        # Normalize the names by removing R1/R2 and the specific suffixes
+        r1_normalized = r1.replace('_R1', '')
+        r2_normalized = r2.replace('_R2', '')
+        
+        if r1_normalized != r2_normalized:
             print(f"Warning: Mismatched pair found - R1: {r1}, R2: {r2}")
         else:
             print(f"Paired: {r1} and {r2}")
@@ -307,9 +311,9 @@ for sample in D_sample_details:
         D_sample_details[sample]["fq_files"][run_accession + "_2.fastq.gz"] = os.path.join(sample_path, "01_sequence_files",
             run_accession, run_accession + "_2.fastq.gz")
 
-        # Update D_trimmed_fqs dictionary with fq.gz file paths
-        for label in D_trimmed_fqs:
-            D_trimmed_fqs[label].append("{}{}{}.fq.gz".format(run_accession, "_1" if "1" in label else "_2", label))
+        # Update D_initial_fqs dictionary with fq.gz file paths
+        for label in D_initial_fqs:
+            D_initial_fqs[label].append("{}{}{}.fq.gz".format(run_accession, "_1" if "1" in label else "_2", label))
 
         # If run_accession not in D_sra_sizes, attempt to get size using 'sra-stat'
         if run_accession not in D_sra_sizes:
@@ -332,7 +336,7 @@ for sample in D_sample_details:
                 F_sra_info.write("{};".format(size_mb))
 
     # Update D_sample_details with run files and trimmed fastq files
-    D_sample_details[sample]["trimmed_fqs"] = D_trimmed_fqs
+    D_sample_details[sample]["initial_fqs"] = D_initial_fqs
 
     # Determine trim profile for the sample based on library_type or trim_profile
     if "trim_profile" not in D_sample_details[sample]:
@@ -359,15 +363,23 @@ for sample in D_sample_details:
                             "following: em_seq, methyl_prism, swift, no_trim")
     
     # List of Trim_galore trimming options
-    L_trim_options = ["--clip_R1 ", "--clip_R2 ", "--three_prime_clip_R1 ", "--three_prime_clip_R2 "]
+    L_trimGalore_options = ["--clip_R1 ", "--clip_R2 ", "--three_prime_clip_R1 ", "--three_prime_clip_R2 "]
+    L_bismark_options = ["--ignore ", "--ignore_r2 ", "--ignore_3prime ", "--ignore_3prime_r2 "]
 
     # Initialize the 'trim_lengths' attribute in D_sample_details for the current sample
-    D_sample_details[sample]["trim_lengths"] = ""
+    D_sample_details[sample]["fq_trim_lengths"] = ""
+    D_sample_details[sample]["bam_trim_lengths"] = ""
     # Loop through to set the trim lengths for all four possible options (two reads, each with two trim sides)
     for x in range(4):
         trim_profile.append(trim_profile[0])
         if trim_profile[x] != "0":
-            D_sample_details[sample]["trim_lengths"] += L_trim_options[x] + trim_profile[x] + " "
+            if x < 2:
+                D_sample_details[sample]["bam_trim_lengths"] += L_bismark_options[x] + trim_profile[x] + " "
+            # Only include 3 prime for fastq trimming
+            if x > 1:
+                D_sample_details[sample]["fq_trim_lengths"] += L_trimGalore_options[x] + trim_profile[x] + " "
+
+    
 
     # Check if 'roi_bed' (Region of Interest in BED format) is in D_sample_details
     if "roi_bed" in D_sample_details.get(sample, {}):
@@ -375,7 +387,7 @@ for sample in D_sample_details:
 
     # If 'maxins' (maximum insert size) is not set, set it based on the library type
     if "maxins" not in D_sample_details[sample]:
-        if D_sample_details[sample]["library_type"] == "em-seq":
+        if D_sample_details[sample]["library_type"] in ["em-seq","methyl_prism"]:
             D_sample_details[sample]["maxins"] = 1000
         else:
             D_sample_details[sample]["maxins"] = 500
@@ -385,7 +397,7 @@ for old_key, new_key in D_replace_keys.items():
     # Replace the old key with the new key, while keeping the associated values unchanged
     D_sample_details[new_key] = D_sample_details.pop(old_key)
 
-def generate_sample_outputs(sample_path, sample, details, cleanup_check, rsync_check):
+def generate_sample_outputs(sample_path, sample, details):
     outputs = []
 
     # Section 1: Handling sequence files (FASTQ and SRA)
@@ -403,48 +415,57 @@ def generate_sample_outputs(sample_path, sample, details, cleanup_check, rsync_c
 
     # Section 2: Trimming FASTQ files
     trimmed_files = [
-        "{}/02_trim_fastq/{}".format(sample_path, trimmed_fq)
-        for label in details.get("trimmed_fqs", {})
-        for trimmed_fq in details["trimmed_fqs"].get(label, [])
-    ] + [
         "{}/02_trim_fastq/{}_r1.fq.gz".format(sample_path, sample),
-        "{}/02_trim_fastq/{}_r2.fq.gz".format(sample_path, sample)
+        "{}/02_trim_fastq/{}_r2.fq.gz".format(sample_path, sample),
+        "{}/02_trim_fastq/{}_combined.fq.gz".format(sample_path, sample),
     ]
     outputs.extend(trimmed_files)
 
     # Section 3: Alignment with Bismark
     alignment_files = [
-        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.bam".format(sample_path, sample),
-#        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.nonCG_removed_seqs.bam".format(sample_path, sample),
-#        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.non-conversion_filtering.txt".format(sample_path, sample),
-#:wq
-#        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.nonCG_filtered.bam".format(sample_path, sample),
-        "{}/03_align_fastq/{}_r1_bismark_bt2_PE_report.txt".format(sample_path, sample),
-        "{}/03_align_fastq/{}_r1_bismark_bt2_pe.nucleotide_stats.txt".format(sample_path, sample),
-        "{}/03_align_fastq/{}_s.bam".format(sample_path, sample),
-        "{}/03_align_fastq/{}_s.bam.bai".format(sample_path, sample),
-        "{}/03_align_fastq/{}_insert_size_histogram.pdf".format(sample_path, sample),
-        "{}/03_align_fastq/{}_insert_size_metrics.txt".format(sample_path, sample),
-        "{}/03_align_fastq/{}_hs_metrics.txt".format(sample_path, sample)
+        "{}/03_align_fastq/{}_r1_uncombined_bismark_bt2_pe.bam".format(sample_path, sample),
+        "{}/03_align_fastq/{}_r1_uncombined_bismark_bt2_PE_report.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_r1_uncombined_bismark_bt2_pe.nucleotide_stats.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_combined_bismark_bt2.bam".format(sample_path, sample),
+        "{}/03_align_fastq/{}_combined_bismark_bt2_SE_report.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_combined_bismark_bt2.nucleotide_stats.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_merged_insert_size_histogram.pdf".format(sample_path, sample),
+        "{}/03_align_fastq/{}_merged_insert_size_metrics.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_merged_hs_metrics.txt".format(sample_path, sample),
+        "{}/03_align_fastq/{}_read_length_histogram.png".format(sample_path, sample),
     ]
+
+    if "umi_len" in details:
+        alignment_files.append("{}/03_align_fastq/{}_combined_s.bam".format(sample_path, sample))
+        alignment_files.append("{}/03_align_fastq/{}_fixed_mate_info_s.bam".format(sample_path, sample))
+    else:
+        alignment_files.append("{}/04_deduplicate_bam/{}_dedup_se.bam".format(sample_path, sample))
+        alignment_files.append("{}/04_deduplicate_bam/{}_dedup_pe.bam".format(sample_path, sample))
+
     outputs.extend(alignment_files)
 
     # Section 4: BAM deduplication and further processing
-    dedup_files = [
-#       "{}/04_deduplicate_bam/{}_CT_genome.bam".format(sample_path, sample),
-#       "{}/04_deduplicate_bam/{}_GA_genome.bam".format(sample_path, sample),
-#       "{}/04_deduplicate_bam/{}_CT_genome_reverted.bam".format(sample_path, sample),
-#       "{}/04_deduplicate_bam/{}_GA_genome_reverted.bam".format(sample_path, sample),
-#        "{}/04_deduplicate_bam/{}_CT_genome_masked.bam".format(sample_path, sample),
-#        "{}/04_deduplicate_bam/{}_GA_genome_masked.bam".format(sample_path, sample),
-#       "{}/04_deduplicate_bam/{}_reverted_s.bam".format(sample_path, sample),
-#       "{}/04_deduplicate_bam/{}_reverted_sd.bam".format(sample_path, sample),
-#        "{}/04_deduplicate_bam/{}_masked_s.bam".format(sample_path, sample),
-#        "{}/04_deduplicate_bam/{}_masked_sd.bam".format(sample_path, sample),
-#       "{}/04_deduplicate_bam/{}_sd_flagstat.txt".format(sample_path, sample),
-#       "{}/04_deduplicate_bam/{}_gencore.json".format(sample_path, sample),
-#       "{}/04_deduplicate_bam/{}_gencore.html".format(sample_path, sample),
-    ]
+    dedup_files = []
+    if "umi_len" in details:
+        dedup_files.extend([
+            "{}/04_deduplicate_bam/{}_corrected_se.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_corrected_pe.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_metrics_se.txt".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_metrics_pe.txt".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_rejected_se.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_rejected_pe.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_grouped_se.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_grouped_pe.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_se.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_pe.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_filtered_se.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_filtered_pe.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_r1_pe.fastq".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_r2_pe.fastq".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_clipped_pe.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_merged_and_sorted_se_pe.bam".format(sample_path, sample),
+            "{}/04_deduplicate_bam/{}_consensus_merged_and_sorted_se_pe_duplex.bam".format(sample_path, sample),
+        ])
     outputs.extend(dedup_files)
 
     # Section 5: Methylation calling and visualization
@@ -452,7 +473,7 @@ def generate_sample_outputs(sample_path, sample, details, cleanup_check, rsync_c
         "{}/05_call_methylation/{}_sd_CpG.bedGraph".format(sample_path, sample),
         "{}/05_call_methylation/{}_CHH_mbias.txt".format(sample_path, sample),
         "{}/05_call_methylation/{}_CHG_mbias.txt".format(sample_path, sample),
-        "{}/05_call_methylation/{}_CpG_mbias.txt".format(sample_path, sample)
+        "{}/05_call_methylation/{}_CpG_mbias.txt".format(sample_path, sample),
     ] + [
         "{}/05_call_methylation/{}{}_ROI_Conversion_{}.bedGraph".format(sample_path, sample, suffix, mG)
         for mG in ["CHH", "CHG", "CpG"]
@@ -480,9 +501,8 @@ def generate_sample_outputs(sample_path, sample, details, cleanup_check, rsync_c
         "{}/07_calculate_statistics/{}_sd_genomeCoverageBed.txt".format(sample_path, sample),
         "{}/07_calculate_statistics/{}_s_conversion_and_coverage.txt".format(sample_path, sample),
         "{}/07_calculate_statistics/{}_sd_conversion_and_coverage.txt".format(sample_path, sample),
-        "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt".format(sample_path, sample),
-#        "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplication_report.txt".format(sample_path, sample),
-        "{}/07_calculate_statistics/{}_r1_bismark_bt2_PE_report.html".format(sample_path, sample)
+        # "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt".format(sample_path, sample),
+        # "{}/07_calculate_statistics/{}_r1_bismark_bt2_PE_report.html".format(sample_path, sample)
     ]
     outputs.extend(stats_files)
 
@@ -493,15 +513,6 @@ def generate_sample_outputs(sample_path, sample, details, cleanup_check, rsync_c
     ]
 
     outputs.extend(methyl_analysis_files)
-
-    # Section 9: Cleanup and finalization
-    # Outputs from the 'cleanup' rule in 09_majel_cleanup.smk
-    #if cleanup_check:
-    #    outputs.append(cleanup_check)  # Conditional output based on cleanup_check flag
-
-    # Outputs from the 'rsync' rule
-    #if rsync_check:
-    #    outputs.append("{}/rsync_complete.txt".format(sample_path)) # Conditional output based on rsync_check flag
 
     return outputs
 
@@ -516,10 +527,10 @@ def get_all_files(D_genomes, D_sample_details):
         # Create a list of genome-related files for each genome
         for genome in D_genomes:
             L_genome_files = [genome+'.fa', genome+'.fa.fai', genome+'.genome', 'CHH_ROI.bed',
-                'Bisulfite_Genome/'+genome+'.CT_conversion.fa',
-                'Bisulfite_Genome/'+genome+'.GA_conversion.fa',
-                'Bisulfite_Genome/GA_conversion/genome_mfa.GA_conversion.fa',
-                'Bisulfite_Genome/CT_conversion/genome_mfa.CT_conversion.fa'
+                # 'Bisulfite_Genome/'+genome+'.CT_conversion.fa',
+                # 'Bisulfite_Genome/'+genome+'.GA_conversion.fa',
+                # 'Bisulfite_Genome/GA_conversion/genome_mfa.GA_conversion.fa',
+                # 'Bisulfite_Genome/CT_conversion/genome_mfa.CT_conversion.fa'
             ]
 
         # Add genome-related files to the sample files list
@@ -545,14 +556,15 @@ def get_all_files(D_genomes, D_sample_details):
         else:
             rsync_check = None
 
+        details["rsync_check"] = rsync_check
+        cleanup_check = None
+
         # Check if cleanup is specified and create cleanup_check accordingly
         if details["cleanup"]:
             cleanup_check = "{}/{}_sd_CpG.bedGraph.gz".format(
                 sample_path, sample
             )
             details["cleanup"] = cleanup_check
-        else:
-            cleanup_check = None
 
         # Define the path for the output file that contains configuration options
         output_file = "{}/{}_majel_config_options.txt".format(sample_path, sample)
@@ -572,7 +584,7 @@ def get_all_files(D_genomes, D_sample_details):
         print_and_write("", output_file, "a")
 		
         # Initialize an empty list for sample outputs
-        details["sample_outputs"] = generate_sample_outputs(sample_path, sample, details, cleanup_check, rsync_check)
+        details["sample_outputs"] = generate_sample_outputs(sample_path, sample, details)
 
         # Check if the sample processing has already been completed
         if rsync_check:
@@ -658,7 +670,7 @@ def get_time_min(wcs, infiles, rule, threads):
     D_cpu_mins = {
         "sra_download": 10,
         "sra_to_fastq": 500,
-        "trim_fastq": 400,
+        "trim_and_merge": 500,
         "bismark_align": 1400,
         "sort_bam": 45,
         "bismark_deduplicate": 50,
@@ -670,13 +682,17 @@ def get_time_min(wcs, infiles, rule, threads):
         "deduplicate_bam": 5000,
         "split_deaminated_genomes": 500,
         "revert_deamination": 15000,
+        "calculate_coverage":500,
         "merge_sort_reverted": 50,
         "cleanup": 10,
         "rsync": 50,
     }
 
+    # Use integer as time if given
+    if isinstance(rule, int):
+        D_cpu_mins[rule] = rule
     # Default time if rule not in D_cpu_mins
-    if rule not in D_cpu_mins:
+    elif rule not in D_cpu_mins:
         D_cpu_mins[rule] = 150
 
     # Initialize thread modifier for time calculation
@@ -986,13 +1002,10 @@ def remove_temp_files(sample, sample_details):
             # Remove the file if it exists
             if os.path.exists(file_path):
                 os.remove(file_path)
-            # Replace output path with rsync path, if rsync option is enabled
-            if sample_details["rsync"]:
-                rsync_file_path = file_path.replace(sample_details["output_path"], sample_details["rsync"])
 
         # Define original and final output paths
         original_path = os.path.join(sample_details["output_path"], sample)
-        final_path = sample_details["rsync"] if sample_details["rsync"] else original_path
+        final_path = sample_details.get("rsync", None) if sample_details.get("rsync", None) else original_path
 
         # Walk through the directory tree starting at final_path
         for root, dirs, files in os.walk(final_path):

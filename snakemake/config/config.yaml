@@ -10,7 +10,11 @@ non_directional: False
 # umi_loc:          Specify the location of UMI, can be (index1/index2/read1/read2/per_index/per_read
 umi_loc: per_read
 
+bam_trim: False
+
 cleanup: False
+
+default-restart-times: 0
 
 call_variants: False
 

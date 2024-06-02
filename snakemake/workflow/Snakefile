@@ -49,15 +49,30 @@ onsuccess:
     # Iterate over the samples in the D_sample_details dictionary
     for sample, details in D_sample_details.items():
         output_path = details['output_path']
+        umi_len = details.get("umi_len", None)
         
-        # Perform rsync if the path is provided
+        # Define the cleanup path based on the config
+        cleanup_check = details.get("cleanup", None)
+        rsync_check = details.get("rsync_check", None)
+        
+        # Function to perform the cleanup if the check file does not exist
+        def perform_cleanup_if_needed():
+            if cleanup_check and not os.path.exists(cleanup_check):
+                perform_cleanup(sample, output_path, umi_len)
+
+        # Function to perform rsync if the check file does not exist
+        def perform_rsync_if_needed():
+            if rsync_check and not os.path.exists(rsync_check):
+                perform_rsync(sample, output_path, rsync_path)
+
+        # Check if rsync path is provided in the config
         if "rsync" in config:
             rsync_path = config["rsync"]
-            perform_cleanup(sample, output_path)
-            perform_rsync(sample, output_path, rsync_path)
-        # Perform cleanup if the flag is set
-        elif config.get("cleanup", False):
-            perform_cleanup(sample, output_path)
+            perform_cleanup_if_needed()
+            perform_rsync_if_needed()
+        # Perform cleanup if the cleanup flag is set and the file does not exist
+        elif cleanup_check:
+            perform_cleanup_if_needed()
 
         # Remove temporary files for each sample
         remove_temp_files(sample, details)
@@ -73,34 +88,39 @@ onerror:
 Rules:
     Snakefile:
         all                     - establishes all output files from all rules
-    
+
     00_transfer_ref_genome.smk:
         transfer_ref_genome     - transfers reference genome files to working directory when using an HPC job scheduling system
 
     01_softlink_fastq.smk:
         softlink_fastq          - softlinks fastq files derived from "data_dir" and "file_prefixes" --config variable
-    
+
     01_sra_download.smk:
-        sra_download            - downloads run accessions stiulated in "file_prefixes --config variable
+        sra_download            - downloads run accessions stiulated in "file_prefixes" --config variable
         sra_to_fastq            - converts sra files to fastqs
-    
+
     02_trim_fastq.smk:
-        move_umi                - moves umis from read to name uisng Fastp
+        move_umi                - moves umis from read to name using Fastp
         trim_fastq              - trims fastqs using trim_galore
         merge_fastq             - merges r1 fastqs together and r2 fastqs together
-    
+
     03_align_fastq.smk:
         bismark_align           - aligns fastq sequences using Bismark to produce a BAM file
         sort_bam                - sorts BAM file produced by Bismark
-
-    03_bismark2report.smk:
-        bismark_deduplicate     - used only for bismark2report: deduplicates BAM file
-        bismark_methylation     - used only for bismark2report: calls cytosine methylation
-        bismark2report          - produces Bismark html report
+        fix_mate_information    - fixes mate information in BAM files using Picard
+        umi_extraction_to_rx    - extracts UMIs from BAM and adds them to the RX tag
+        filter_non_conversion   - filters non-conversion reads from BAM
+        picard_metrics          - collects Picard metrics such as insert size and hybrid selection metrics
 
     04_deduplicate_bam.smk:
-        deduplicate_bam         - deduplicates reads in sorted BAM using Gencore for UMI support
-        merge_deduplicate_bams  - merges deduplicated CT and GA BAMs
+        picard_deduplication    - deduplicates reads in sorted BAM using Picard (when UMIs are not present)
+        correct_umis            - corrects UMIs in BAM files
+        group_reads_by_umi      - groups reads by UMI
+        call_molecular_consensus_reads - calls molecular consensus reads
+        filter_consensus_reads  - filters consensus reads
+        convert_bam_to_fastq_pair - converts BAM to paired-end fastq files
+        bismark_realign         - realigns converted fastq files using Bismark
+        clip_bam                - clips overlapping reads in BAM files
 
     05_call_methylation.smk:
         call_methylation        - calls cytosine methylation using MethylDackel for downstream analysis
@@ -111,12 +131,14 @@ Rules:
 
     07_calculate_statistics.smk:
         calculate_coverage      - calculates sequencing coverage statistics
-        calculate_conversion    - calculates cytosine conversion statistics
+        calculate_stats         - calculates cytosine conversion statistics
+        bismark2report          - compiles multiple Bismark reports into a single HTML report
 
     08_methylseekr_and_TDF.smk:
         methylseekr_and_TDF     - calls UMRs and LMRs with and without PMDs, produces TDF file for IGV
 
     09_majel_cleanup.smk:
-        cleanup                 - removes temporary files, restructures ouput directories, and zips text files
+        cleanup                 - removes temporary files, restructures output directories, and zips text files
         rsync                   - moves final output to a specified directory
+
 '''

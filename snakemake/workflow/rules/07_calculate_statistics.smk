@@ -1,14 +1,15 @@
-# Rule to calculate coverage statistics using bedtools and samtools.
 rule calculate_coverage:
     input:
         # Input BAM and bedGraph files
-        s_bam="{output_path}/{sample}/03_align_fastq/{sample}_s.bam",
-        sd_bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_clipped.bam",
+        s_bam="{output_path}/{sample}/03_align_fastq/{sample}_merged_and_sorted.bam",  # Input sorted BAM file
+        sd_bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe.bam",  # Input deduplicated BAM file
         sd_bedGraph="{output_path}/{sample}/05_call_methylation/{sample}_sd_CpG.bedGraph",
     output:
         # Output file containing genome coverage statistics
         s="{output_path}/{sample}/07_calculate_statistics/{sample}_s_genomeCoverageBed.txt",
         sd="{output_path}/{sample}/07_calculate_statistics/{sample}_sd_genomeCoverageBed.txt",
+        s_roi="{output_path}/{sample}/07_calculate_statistics/{sample}_s_genomeCoverageBed_roi.txt",
+        sd_roi="{output_path}/{sample}/07_calculate_statistics/{sample}_sd_genomeCoverageBed_roi.txt",
     params:
         # Define command to intersect with ROI bed if available
         intersect=lambda wcs: 'bedtools intersect -abam stdin -b ' +
@@ -31,13 +32,37 @@ rule calculate_coverage:
         partition=""
     shell:
         # Shell command to filter and process BAM file, then calculate genome coverage using bedtools.
-        "samtools view -h -b -F 0x400 {input.sd_bam} | {params.intersect}bedtools "
-        "genomecov -ibam - -g {params.genome_file} 1> {output.sd} "
-        "2>> {log}\n\n"
-        "samtools view -h -b -F 0x400 {input.s_bam} | {params.intersect}bedtools "
-        "genomecov -ibam - -g {params.genome_file} 1> {output.s} "
-        "2>> {log}"
+        "samtools view -h -b -F 0x400 {input.sd_bam} | bedtools genomecov -ibam - -g {params.genome_file} 1> {output.sd} 2>> {log}\n\n"
+        "samtools view -h -b -F 0x400 {input.s_bam} | bedtools genomecov -ibam - -g {params.genome_file} 1> {output.s} 2>> {log}\n\n"
+        "samtools view -h -b -F 0x400 {input.sd_bam} | {params.intersect}bedtools genomecov -ibam - -g {params.genome_file} 1> {output.sd_roi} 2>> {log}\n\n"
+        "samtools view -h -b -F 0x400 {input.s_bam} | {params.intersect}bedtools genomecov -ibam - -g {params.genome_file} 1> {output.s_roi} 2>> {log}"
 
+rule plot_coverage:
+    input:
+        s="{output_path}/{sample}/07_calculate_statistics/{sample}_s_genomeCoverageBed.txt",
+        sd="{output_path}/{sample}/07_calculate_statistics/{sample}_sd_genomeCoverageBed.txt",
+        s_roi="{output_path}/{sample}/07_calculate_statistics/{sample}_s_genomeCoverageBed_roi.txt",
+        sd_roi="{output_path}/{sample}/07_calculate_statistics/{sample}_sd_genomeCoverageBed_roi.txt"
+    output:
+        plot="{output_path}/{sample}/07_calculate_statistics/{sample}_coverage_plot.png",
+        plot_roi="{output_path}/{sample}/07_calculate_statistics/{sample}_coverage_plot_roi.png"
+    log:
+        "{output_path}/{sample}/logs/{sample}_plot_coverage.log",
+    conda:
+        "../envs/matplotlib.yaml"
+    threads: 1
+    resources:
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "plot_coverage", threads),
+        cpus=lambda wcs, threads: threads,
+        mem_mb=lambda wcs: get_mem_mb(wcs, threads, 2048),
+        account=lambda wcs: D_sample_details[wcs.sample]['account'],
+        email=lambda wcs: D_sample_details[wcs.sample]['email'],
+        partition=""
+    shell:
+        """
+        python scripts/plot_coverage.py {input.s} {input.sd} {output.plot} "Coverage Plot - {wildcards.sample}" &> {log}
+        python scripts/plot_coverage.py {input.s_roi} {input.sd_roi} {output.plot_roi} "Coverage Plot ROI - {wildcards.sample}" &> {log}
+        """
 
 # Rule to calculate conversion statistics using the genome coverage data.
 rule calculate_stats:
@@ -45,17 +70,16 @@ rule calculate_stats:
         # Input coverage data
         s_cov="{output_path}/{sample}/07_calculate_statistics/{sample}_s_genomeCoverageBed.txt",
         sd_cov="{output_path}/{sample}/07_calculate_statistics/{sample}_sd_genomeCoverageBed.txt",
-        bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_clipped.bam",
+        bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe.bam",
         CHH="{output_path}/{sample}/05_call_methylation/{sample}_CHH_mbias.txt",
         CHG="{output_path}/{sample}/05_call_methylation/{sample}_CHG_mbias.txt",
         CpG="{output_path}/{sample}/05_call_methylation/{sample}_CpG_mbias.txt",
         # json="{output_path}/{sample}/04_deduplicate_bam/{sample}_gencore.json",
-        og_bam="{output_path}/{sample}/03_align_fastq/{sample}_r1_bismark_bt2_pe.bam",
     output:
         # Output file containing conversion and coverage statistics
         s_con="{output_path}/{sample}/07_calculate_statistics/{sample}_s_conversion_and_coverage.txt",
         sd_con="{output_path}/{sample}/07_calculate_statistics/{sample}_sd_conversion_and_coverage.txt",
-        split="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt",
+        # split="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt",
         mbias="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplicated.M-bias.txt",
         # dedup="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplication_report.txt",
     threads: 1
@@ -99,32 +123,32 @@ rule calculate_stats:
 
         # process_dedup_json(input.json, output.dedup, input.og_bam)
 
-        transform_methylation(input.bam, output.split, D_conversion)
+        # transform_methylation(input.bam, output.split, D_conversion)
 
 # Rule to compile multiple Bismark reports into a single HTML report for easier analysis and visualization.
-rule bismark2report:
-    input:
-        # Required report files from various Bismark processing steps
-        align_rep="{output_path}/{sample}/03_align_fastq/{sample}_r1_bismark_bt2_PE_report.txt",
-        nuc_rep="{output_path}/{sample}/03_align_fastq/{sample}_r1_bismark_bt2_pe.nucleotide_stats.txt",
-        # dedup_rep="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplication_report.txt",
-        split_rep="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt",
-        mbias_rep="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplicated.M-bias.txt",
-    output:
-        "{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_PE_report.html",
-    log:
-        "{output_path}/{sample}/logs/{sample}_bismark2report.log",
-    conda:
-        "../envs/bismark.yaml",
-    threads: 1  # Single-threaded as report generation is not CPU-intensive
-    resources:
-        time_min=10,
-        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
-        cpus=1,
-        account=lambda wcs: D_sample_details[wcs.sample]['account'],
-        email=lambda wcs: D_sample_details[wcs.sample]['email'],
-        partition=""
-    shell:
-        'bismark2report --alignment_report {input.align_rep} '
-        '--splitting_report {input.split_rep} --mbias_report {input.mbias_rep} '
-        '--nucleotide_report {input.nuc_rep} --dir {wildcards.output_path}/{wildcards.sample}/07_calculate_statistics &>> {log}'
+# rule bismark2report:
+#     input:
+#         # Required report files from various Bismark processing steps
+#         align_rep="{output_path}/{sample}/03_align_fastq/{sample}_r1_bismark_bt2_PE_report.txt",
+#         nuc_rep="{output_path}/{sample}/03_align_fastq/{sample}_r1_bismark_bt2_pe.nucleotide_stats.txt",
+#         # dedup_rep="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplication_report.txt",
+#         split_rep="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt",
+#         mbias_rep="{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_pe.deduplicated.M-bias.txt",
+#     output:
+#         "{output_path}/{sample}/07_calculate_statistics/{sample}_r1_bismark_bt2_PE_report.html",
+#     log:
+#         "{output_path}/{sample}/logs/{sample}_bismark2report.log",
+#     conda:
+#         "../envs/bismark.yaml",
+#     threads: 1  # Single-threaded as report generation is not CPU-intensive
+#     resources:
+#         time_min=10,
+#         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
+#         cpus=1,
+#         account=lambda wcs: D_sample_details[wcs.sample]['account'],
+#         email=lambda wcs: D_sample_details[wcs.sample]['email'],
+#         partition=""
+#     shell:
+#         'bismark2report --alignment_report {input.align_rep} '
+#         '--splitting_report {input.split_rep} --mbias_report {input.mbias_rep} '
+#         '--nucleotide_report {input.nuc_rep} --dir {wildcards.output_path}/{wildcards.sample}/07_calculate_statistics &>> {log}'
