@@ -473,11 +473,12 @@ def generate_sample_outputs(sample_path, sample, details):
         "{}/05_call_methylation/{}{}_ROI_Conversion_{}.bedGraph".format(sample_path, sample, suffix, mG)
         for mG in ["CHH", "CHG", "CpG"]
         for suffix in ["_sd", "_s"]
-    ] + [
-        "{}/05_call_methylation/{}_{}_{}.svg".format(sample_path, sample, context, strand)
-        for context in ["CHH", "CHG", "CpG"]
-        for strand in ["OT", "OB"]
-    ]
+    ] 
+    # + [
+    #     "{}/05_call_methylation/{}_{}_{}.svg".format(sample_path, sample, context, strand)
+    #     for context in ["CHH", "CHG", "CpG"]
+    #     for strand in ["OT", "OB"]
+    # ]
     outputs.extend(methylation_files)
 
     # Section 6: Variant calling
