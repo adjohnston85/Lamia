@@ -73,7 +73,7 @@ rule fix_mate_information:
         "../envs/picard.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 50, threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 10, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -100,7 +100,7 @@ rule umi_extraction_to_rx:
         "../envs/samtools.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 50, threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 40, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -118,7 +118,7 @@ rule umi_extraction_to_rx:
             }} else {{
                 print;  # Output lines without UMI in the header unchanged
             }}
-        }}' | samtools view -b -o {output.bam_with_umi_se}
+        }}' | samtools view -b -o {output.bam_with_umi_se}.temp
 
         samtools view -h {input.bam_pe} | \
         awk 'BEGIN {{FS=OFS="\t"}} {{
@@ -130,7 +130,10 @@ rule umi_extraction_to_rx:
             }} else {{
                 print;  # Output lines without UMI in the header unchanged
             }}
-        }}' | samtools view -b -o {output.bam_with_umi_pe}
+        }}' | samtools view -b -o {output.bam_with_umi_pe}.temp
+
+        mv {output.bam_with_umi_se}.temp {output.bam_with_umi_se}
+        mv {output.bam_with_umi_pe}.temp {output.bam_with_umi_pe}
         """
 
 rule filter_non_conversion:
@@ -162,7 +165,7 @@ rule filter_non_conversion:
         "../envs/bismark.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 50, threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 20, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -187,7 +190,7 @@ rule filter_non_conversion:
         fi
         """
 
-rule merged_and_sort_bam:
+rule merge_and_sort_bam:
     input:
         nonCG_filtered_se="{output_path}/{sample}/03_align_fastq/{sample}_combined_nonCG_filtered.bam",
         nonCG_filtered_pe="{output_path}/{sample}/03_align_fastq/{sample}_fixed_mate_info_nonCG_filtered.bam"
@@ -207,7 +210,7 @@ rule merged_and_sort_bam:
         "../envs/samtools.yaml",
     threads: lambda wcs: get_cpus(1, 16),
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 50, threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 200, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -216,7 +219,7 @@ rule merged_and_sort_bam:
     shell:
         """
         # Merge BAM files
-        samtools merge -@ {threads} -O bam -o {output.merged_bam}.unsorted {input.nonCG_filtered_se} {input.nonCG_filtered_pe} &>> {log}
+        samtools merge -f -@ {threads} -O bam -o {output.merged_bam}.unsorted {input.nonCG_filtered_se} {input.nonCG_filtered_pe} &>> {log}
 
         # Sort the merged BAM file
         samtools sort -@ {threads} -O bam -o {output.merged_bam} {output.merged_bam}.unsorted &>> {log}
@@ -256,7 +259,7 @@ rule picard_metrics:
         "../envs/picard.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 50, threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 5, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -272,27 +275,4 @@ rule picard_metrics:
         else
             echo 'no regions of interest specified' > {output.hybrid_selection}
         fi
-        """
-
-rule plot_read_length_histogram:
-    input:
-        bam="{output_path}/{sample}/03_align_fastq/{sample}_merged_and_sorted.bam"
-    output:
-        histogram="{output_path}/{sample}/03_align_fastq/{sample}_read_length_histogram.png",
-        length_counts="{output_path}/{sample}/03_align_fastq/{sample}_read_length_counts.txt"
-    log:
-        "{output_path}/{sample}/logs/{sample}_plot_read_length_histogram.log"
-    conda:
-        "../envs/gencore.yaml"
-    threads: 1
-    resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "plot_read_length_histogram", threads),
-        cpus=lambda wcs, threads: threads,
-        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
-        account=lambda wcs: D_sample_details[wcs.sample]['account'],
-        email=lambda wcs: D_sample_details[wcs.sample]['email'],
-        partition=""
-    shell:
-        """
-        python scripts/plot_read_length_histogram.py {input.bam} {output.histogram} {output.length_counts} &> {log}
         """

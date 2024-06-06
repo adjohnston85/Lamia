@@ -14,7 +14,7 @@ bam_trim: False
 
 cleanup: False
 
-default-restart-times: 0
+restart-times: 0
 
 call_variants: False
 

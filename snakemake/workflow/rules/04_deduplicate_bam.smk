@@ -1,17 +1,19 @@
 rule picard_deduplication:
     input:
         bam_se="{output_path}/{sample}/03_align_fastq/{sample}_combined_s.bam",
-        bam_pe="{output_path}/{sample}/03_align_fastq/{sample}_fixed_mate_info_s.bam"
+        bam_pe="{output_path}/{sample}/03_align_fastq/{sample}_fixed_mate_info_s.bam",
     output:
         dedup_bam_se="{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_se.bam",
-        dedup_bam_pe="{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_pe.bam"
+        dedup_bam_pe="{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_pe.bam",
+        dedup_bam_merged="{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_merged_and_sorted_se_pe.bam",
+        dedup_bam_merged_bai="{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_merged_and_sorted_se_pe.bam.bai",
     log:
         "{output_path}/{sample}/logs/{sample}_picard_deduplication.log",
     conda:
         "../envs/picard.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "picard_deduplication", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 20, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -22,6 +24,16 @@ rule picard_deduplication:
         picard MarkDuplicates I={input.bam_se} O={output.dedup_bam_se} M={output.dedup_bam_se}.metrics.txt VALIDATION_STRINGENCY=SILENT REMOVE_DUPLICATES=true 1>> {log} 2>&1
 
         picard MarkDuplicates I={input.bam_pe} O={output.dedup_bam_pe} M={output.dedup_bam_pe}.metrics.txt VALIDATION_STRINGENCY=SILENT REMOVE_DUPLICATES=true 1>> {log} 2>&1
+
+        samtools merge -@ {threads} -f {output.dedup_bam_merged}.unsorted {output.dedup_bam_se} {output.dedup_bam_pe} &>> {log}
+
+        # Sort the merged BAM file
+        samtools sort -@ {threads} -O bam -o {output.dedup_bam_merged} {output.dedup_bam_merged}.unsorted &>> {log}
+
+        # Index the sorted BAM file
+        samtools index -@ {threads} {output.dedup_bam_merged} &>> {log}
+
+        rm {output.dedup_bam_merged}.unsorted
         """
 
 rule correct_umis:
@@ -43,7 +55,7 @@ rule correct_umis:
         "../envs/fgbio.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "correct_umis", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 100, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -69,7 +81,7 @@ rule group_reads_by_umi:
         "../envs/fgbio.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "group_reads_by_umi", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 4, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -97,7 +109,7 @@ rule call_molecular_consensus_reads:
         "../envs/fgbio.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "call_molecular_consensus_reads", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 10, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb= 65536,
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -139,7 +151,7 @@ rule filter_consensus_reads:
         "../envs/fgbio.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "filter_consensus_reads", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 1, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -168,7 +180,7 @@ rule convert_bam_to_fastq:
         "../envs/samtools.yaml"
     threads: 1
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "convert_bam_to_fastq", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 1, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -181,30 +193,30 @@ rule convert_bam_to_fastq:
         awk 'BEGIN {{FS=OFS="\t"}} 
             /^@/ {{next}} 
             {{umi=""; 
-              for(i=12;i<=NF;i++) 
+            for(i=12;i<=NF;i++) 
                 if ($i ~ /^RX:Z:/) umi=$i; 
-              gsub(/RX:Z:/,"",umi); 
-              print "@"$1":"umi"\\n"$10"\\n+\\n"$11}}' > {output.fastq_se}
+            gsub(/RX:Z:/,"",umi); 
+            print "@"$1":"umi"\\n"$10"\\n+\\n"$11}}' > {output.fastq_se}
 
         # Convert BAM to FASTQ for paired-end reads (read 1) with UMI
         samtools view -h -f 64 {input.bam_pe} | \
         awk 'BEGIN {{FS=OFS="\t"}} 
             /^@/ {{next}} 
             {{umi=""; 
-              for(i=12;i<=NF;i++) 
+            for(i=12;i<=NF;i++) 
                 if ($i ~ /^RX:Z:/) umi=$i; 
-              gsub(/RX:Z:/,"",umi); 
-              print "@"$1":"umi"\\n"$10"\\n+\\n"$11}}' > {output.fastq1_pe}
+            gsub(/RX:Z:/,"",umi); 
+            print "@"$1":"umi"\\n"$10"\\n+\\n"$11}}' > {output.fastq1_pe}
 
         # Convert BAM to FASTQ for paired-end reads (read 2) with UMI
         samtools view -h -f 128 {input.bam_pe} | \
         awk 'BEGIN {{FS=OFS="\t"}} 
             /^@/ {{next}} 
             {{umi=""; 
-              for(i=12;i<=NF;i++) 
+            for(i=12;i<=NF;i++) 
                 if ($i ~ /^RX:Z:/) umi=$i; 
-              gsub(/RX:Z:/,"",umi); 
-              print "@"$1":"umi"\\n"$10"\\n+\\n"$11}}' > {output.fastq2_pe}
+            gsub(/RX:Z:/,"",umi); 
+            print "@"$1":"umi"\\n"$10"\\n+\\n"$11}}' > {output.fastq2_pe}
         """
 
 rule bismark_realign:
@@ -230,7 +242,7 @@ rule bismark_realign:
         "../envs/bismark.yaml",
     threads: lambda wcs: get_cpus(16, 64),
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "bismark_align", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 500, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 4096),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -259,7 +271,7 @@ rule clip_bam:
         "../envs/fgbio.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "clip_bam", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 1, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -273,16 +285,17 @@ rule clip_bam:
 rule merge_se_pe_bams:
     input:
         bam_se="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_se_bismark_bt2.bam",
-        bam_pe="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_clipped_pe.bam"
+        bam_pe="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_clipped_pe.bam",
     output:
-        merged_bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe.bam"
+        merged_bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe.bam",
+        merged_bai="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe.bam.bai",
     log:
         "{output_path}/{sample}/logs/{sample}_merge_se_pe_bams.log",
     conda:
         "../envs/samtools.yaml",
     threads: 1,
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "merge_se_pe_bams", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 1, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -305,7 +318,8 @@ rule duplex_methylation_processing:
     input:
         merged_bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe.bam"
     output:
-        duplex_bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe_duplex.bam"
+        duplex_bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe_duplex.bam",
+        duplex_bai="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe_duplex.bam.bai",
     params:
         genome_path=lambda wcs: D_sample_details[wcs.sample]["genome_path"],
         genome=lambda wcs: D_sample_details[wcs.sample]["genome"]
@@ -315,7 +329,7 @@ rule duplex_methylation_processing:
         "../envs/gencore.yaml"
     threads: get_cpus(1,64),
     resources:
-        time_min=lambda wcs, input, threads: get_time_min(wcs, input, "duplex_methylation_processing", threads),
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 1, threads),
         cpus=lambda wcs, threads: threads,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 32768),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],

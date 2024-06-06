@@ -1,9 +1,64 @@
+rule plot_read_length_histograms:
+    input:
+        s_bam="{output_path}/{sample}/03_align_fastq/{sample}_merged_and_sorted.bam",  # Input sorted BAM file
+        sd_bam=lambda wildcards: (
+            "{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe_duplex.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+            if "umi_len" in D_sample_details[wildcards.sample]
+            else "{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_merged_and_sorted_se_pe.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+        ),
+    output:
+        s_histogram="{output_path}/{sample}/07_calculate_statistics/{sample}_read_length_histogram_s.png",
+        sd_histogram="{output_path}/{sample}/07_calculate_statistics/{sample}_read_length_histogram_sd.png",
+    params:
+        sdd_bam=lambda wildcards: (
+            "{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe_duplex.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+            if "umi_len" in D_sample_details[wildcards.sample]
+            else "None"
+        ),
+    log:
+        "{output_path}/{sample}/logs/{sample}_plot_read_length_histogram.log"
+    conda:
+        "../envs/gencore.yaml"
+    threads: 1
+    resources:
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 1, threads),
+        cpus=lambda wcs, threads: threads,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
+        account=lambda wcs: D_sample_details[wcs.sample]['account'],
+        email=lambda wcs: D_sample_details[wcs.sample]['email'],
+        partition=""
+    shell:
+        """
+        python scripts/plot_read_length_histogram.py {input.s_bam} {output.s_histogram} &> {log}
+
+        python scripts/plot_read_length_histogram.py {input.sd_bam} {output.sd_histogram} &>> {log}
+
+        # Conditionally process duplex BAM
+        if [ "{params.sdd_bam}" != "None" ]; then
+            python scripts/plot_read_length_histogram.py {params.sdd_bam} "{wildcards.output_path}/{wildcards.sample}/07_calculate_statistics/{wildcards.sample}_read_length_histogram_sdd.png" &>> {log}   
+        fi    
+        """
+
 rule calculate_coverage:
     input:
         # Input BAM and bedGraph files
         s_bam="{output_path}/{sample}/03_align_fastq/{sample}_merged_and_sorted.bam",  # Input sorted BAM file
-        sd_bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe.bam",  # Input deduplicated BAM file
         sd_bedGraph="{output_path}/{sample}/05_call_methylation/{sample}_sd_CpG.bedGraph",
+        sd_bam=lambda wildcards: (
+            "{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe_duplex.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+            if "umi_len" in D_sample_details[wildcards.sample]
+            else "{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_merged_and_sorted_se_pe.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+        )
     output:
         # Output file containing genome coverage statistics
         s="{output_path}/{sample}/07_calculate_statistics/{sample}_s_genomeCoverageBed.txt",
@@ -24,7 +79,7 @@ rule calculate_coverage:
         "../envs/bedtools.yaml"
     threads: 1
     resources:
-        time_min=lambda wildcards, input, threads: get_time_min(wildcards, input, "calculate_coverage", threads),
+        time_min=lambda wildcards, input, threads: get_time_min(wildcards, input, 100, threads),
         cpus=1,
         mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
         account=lambda wcs: D_sample_details[wcs.sample]['account'],
@@ -70,11 +125,18 @@ rule calculate_stats:
         # Input coverage data
         s_cov="{output_path}/{sample}/07_calculate_statistics/{sample}_s_genomeCoverageBed.txt",
         sd_cov="{output_path}/{sample}/07_calculate_statistics/{sample}_sd_genomeCoverageBed.txt",
-        bam="{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe.bam",
         CHH="{output_path}/{sample}/05_call_methylation/{sample}_CHH_mbias.txt",
         CHG="{output_path}/{sample}/05_call_methylation/{sample}_CHG_mbias.txt",
         CpG="{output_path}/{sample}/05_call_methylation/{sample}_CpG_mbias.txt",
-        # json="{output_path}/{sample}/04_deduplicate_bam/{sample}_gencore.json",
+        bam=lambda wildcards: (
+            "{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe_duplex.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+            if "umi_len" in D_sample_details[wildcards.sample]
+            else "{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_merged_and_sorted_se_pe.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+        ),
     output:
         # Output file containing conversion and coverage statistics
         s_con="{output_path}/{sample}/07_calculate_statistics/{sample}_s_conversion_and_coverage.txt",
@@ -124,6 +186,54 @@ rule calculate_stats:
         # process_dedup_json(input.json, output.dedup, input.og_bam)
 
         # transform_methylation(input.bam, output.split, D_conversion)
+
+rule gencore:
+    input:
+        bam_pe="{output_path}/{sample}/03_align_fastq/{sample}_fixed_mate_info.bam",
+        bam_se="{output_path}/{sample}/03_align_fastq/{sample}_combined_bismark_bt2.bam",
+    output:
+        gencore_bam="{output_path}/{sample}/07_calculate_statistics/{sample}_{genome}_gencore.bam",
+    params:
+        umi_prefix= lambda wcs: "--umi_prefix={} ".format(D_sample_details[wcs.sample]["umi_prefix"]) if "umi_len" in D_sample_details[wcs.sample] else "",
+        b=lambda wcs: '-b ' + D_sample_details[wcs.sample]["roi_bed"] + ' '
+          if "roi_bed" in D_sample_details[wcs.sample] else "",
+        r=lambda wcs: D_sample_details[wcs.sample]["genome_path"] + \
+          "/Bisulfite_Genome/" + D_sample_details[wcs.sample]["genome"] + \
+          "." + wcs.genome + "_conversion.fa",
+        mG_bam="{output_path}/{sample}/07_calculate_statistics/{sample}_{genome}_genome.bam",
+    log:
+        "{output_path}/{sample}/logs/{sample}_gencore_{genome}.log",
+    conda:
+        "../envs/gencore.yaml"
+    threads: lambda wcs: get_cpus(1,64)
+    log:
+        "{output_path}/{sample}/logs/{sample}_gencore.log",
+    conda:
+        "../envs/gencore.yaml"
+    threads: lambda wcs: get_cpus(1,64)
+    resources:
+        time_min=lambda wcs, input, threads: get_time_min(wcs, input, 500, threads),
+        cpus=lambda wcs, threads: threads,
+        mem_mb=lambda wcs, threads: get_mem_mb(wcs, threads, 2048),
+        account=lambda wcs: D_sample_details[wcs.sample]['account'],
+        email=lambda wcs: D_sample_details[wcs.sample]['email'],
+        partition=""
+    shell: 
+        'samtools merge -@ {threads} -f {output.gencore_bam}.unsorted {input.bam_se} {input.bam_pe} &> {log}\n\n'
+
+        'samtools sort -@ {threads} -O bam -o {output.gencore_bam}.unprocessed {output.gencore_bam}.unsorted &>> {log}\n\n'
+
+        'samtools view -h {output.gencore_bam}.unprocessed | grep -e "XG:Z:{wildcards.genome}" -e "@" '
+        '| samtools view -bS - 1> {params.mG_bam} '
+        '2>> {log} \n\n'
+
+        'gencore {params.umi_prefix}-s 1 -d 2 '
+        '-i {params.mG_bam} -o {output.gencore_bam} -r {params.r} {params.b}'
+        '-j {wildcards.output_path}/{wildcards.sample}/07_calculate_statistics/gencore_{wildcards.genome}.json '
+        '-h {wildcards.output_path}/{wildcards.sample}/07_calculate_statistics/gencore_{wildcards.genome}.html '
+        '&>> {log}\n\n'
+
+        'rm {params.mG_bam} {output.gencore_bam}.unsorted {output.gencore_bam}.unprocessed'
 
 # Rule to compile multiple Bismark reports into a single HTML report for easier analysis and visualization.
 # rule bismark2report:

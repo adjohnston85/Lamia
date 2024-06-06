@@ -313,7 +313,7 @@ for sample in D_sample_details:
 
         # Update D_initial_fqs dictionary with fq.gz file paths
         for label in D_initial_fqs:
-            D_initial_fqs[label].append("{}{}{}.fq.gz".format(run_accession, "_1" if "1" in label else "_2", label))
+            D_initial_fqs[label].append("{}{}.fastq.gz".format(run_accession, "_1" if "1" in label else "_2"))
 
         # If run_accession not in D_sra_sizes, attempt to get size using 'sra-stat'
         if run_accession not in D_sra_sizes:
@@ -348,9 +348,9 @@ for sample in D_sample_details:
     if trim_profile[0] == "em_seq":
         trim_profile = ["10", "10", "10", "10"]
     elif trim_profile[0] == "methyl_prism":
-        trim_profile = ["4", "8", "4", "8"]
+        trim_profile = ["10", "10", "10", "10"]
     elif trim_profile[0] in ["swift", "bs_seq"]:
-        trim_profile = ["10", "15", "10", "10"]
+        trim_profile = ["10", "10", "15", "10"]
     elif trim_profile[0] == "no_trim":
         trim_profile[0] = "0"
     else:
@@ -363,23 +363,18 @@ for sample in D_sample_details:
                             "following: em_seq, methyl_prism, swift, no_trim")
     
     # List of Trim_galore trimming options
-    L_trimGalore_options = ["--clip_R1 ", "--clip_R2 ", "--three_prime_clip_R1 ", "--three_prime_clip_R2 "]
-    L_bismark_options = ["--ignore ", "--ignore_r2 ", "--ignore_3prime ", "--ignore_3prime_r2 "]
+    L_trimGalore_options = ["--clip_R1 ", "--three_prime_clip_R1 ", "--clip_R2 ", "--three_prime_clip_R2 "]
 
     # Initialize the 'trim_lengths' attribute in D_sample_details for the current sample
     D_sample_details[sample]["fq_trim_lengths"] = ""
-    D_sample_details[sample]["bam_trim_lengths"] = ""
     # Loop through to set the trim lengths for all four possible options (two reads, each with two trim sides)
     for x in range(4):
         trim_profile.append(trim_profile[0])
         if trim_profile[x] != "0":
-            if x < 2:
-                D_sample_details[sample]["bam_trim_lengths"] += L_bismark_options[x] + trim_profile[x] + " "
-            # Only include 3 prime for fastq trimming
             if x > 1:
                 D_sample_details[sample]["fq_trim_lengths"] += L_trimGalore_options[x] + trim_profile[x] + " "
 
-    
+    D_sample_details[sample]["trim_profile"] = trim_profile
 
     # Check if 'roi_bed' (Region of Interest in BED format) is in D_sample_details
     if "roi_bed" in D_sample_details.get(sample, {}):
@@ -432,7 +427,6 @@ def generate_sample_outputs(sample_path, sample, details):
         "{}/03_align_fastq/{}_merged_insert_size_histogram.pdf".format(sample_path, sample),
         "{}/03_align_fastq/{}_merged_insert_size_metrics.txt".format(sample_path, sample),
         "{}/03_align_fastq/{}_merged_hs_metrics.txt".format(sample_path, sample),
-        "{}/03_align_fastq/{}_read_length_histogram.png".format(sample_path, sample),
     ]
 
     if "umi_len" in details:
@@ -441,6 +435,7 @@ def generate_sample_outputs(sample_path, sample, details):
     else:
         alignment_files.append("{}/04_deduplicate_bam/{}_dedup_se.bam".format(sample_path, sample))
         alignment_files.append("{}/04_deduplicate_bam/{}_dedup_pe.bam".format(sample_path, sample))
+        alignment_files.append("{}/04_deduplicate_bam/{}_dedup_merged_and_sorted_se_pe.bam".format(sample_path, sample))
 
     outputs.extend(alignment_files)
 
@@ -501,6 +496,10 @@ def generate_sample_outputs(sample_path, sample, details):
         "{}/07_calculate_statistics/{}_sd_genomeCoverageBed.txt".format(sample_path, sample),
         "{}/07_calculate_statistics/{}_s_conversion_and_coverage.txt".format(sample_path, sample),
         "{}/07_calculate_statistics/{}_sd_conversion_and_coverage.txt".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_read_length_histogram_s.png".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_read_length_histogram_sd.png".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_CT_gencore.bam".format(sample_path, sample),
+        "{}/07_calculate_statistics/{}_GA_gencore.bam".format(sample_path, sample),      
         # "{}/07_calculate_statistics/{}_r1_bismark_bt2_pe.deduplicated_splitting_report.txt".format(sample_path, sample),
         # "{}/07_calculate_statistics/{}_r1_bismark_bt2_PE_report.html".format(sample_path, sample)
     ]
@@ -548,7 +547,7 @@ def get_all_files(D_genomes, D_sample_details):
         # Check if rsync is specified and create rsync_check accordingly
         rsync_path = details.get("rsync")
         if rsync_path:
-            rsync_check = "{0}/{1}/stats/methyldackel/{1}_ROI_Conversion_CpG.bedGraph.gz".format(
+            rsync_check = "{0}/{1}/methyldackel/{1}_sd_ROI_Conversion_CpG.bedGraph.gz".format(
                 details["rsync"], sample
             )
             # Enable cleanup for the sample
@@ -595,6 +594,8 @@ def get_all_files(D_genomes, D_sample_details):
                 # If rsync is done, clear sample outputs and log the information
                 details["sample_outputs"] = []
                 print_and_write(sample + ": cleanup and rsync previously completed, nothing else to do\n", F_run_info, "a")
+            else:
+                print_and_write(sample + ": cleanup and rsync were specified and will run upon pipeline completion\n", F_run_info, "a")
         
         elif cleanup_check:
             # Check if cleanup has been completed
@@ -676,13 +677,12 @@ def get_time_min(wcs, infiles, rule, threads):
         "bismark_deduplicate": 50,
         "bismark_methylation": 30,
         "mask_converted_bases":600,
-        "call_variants": 200,
-        "call_methylation": 400,
+        "call_variants": 1000,
+        "call_methylation": 100,
         "bismark_methylation": 600,
-        "deduplicate_bam": 5000,
         "split_deaminated_genomes": 500,
         "revert_deamination": 15000,
-        "calculate_coverage":500,
+        "calculate_coverage":50,
         "merge_sort_reverted": 50,
         "cleanup": 10,
         "rsync": 50,
@@ -905,7 +905,10 @@ def conversion_estimator(sample, context, D_conversion, suffix):
                 chromo = L_columns[0]
 
             # Extract methylation and unmethylation counts and calculate conversion and coverage.
-            meth = float(L_columns[4])
+            try:
+                meth = float(L_columns[4])
+            except:
+                continue
             unmeth = float(L_columns[5])
             total_Cs = meth + unmeth
             conversion = meth / total_Cs

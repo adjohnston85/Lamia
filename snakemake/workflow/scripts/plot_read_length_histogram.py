@@ -2,8 +2,9 @@ import sys
 import pysam
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
-def plot_histogram(bam_file, histogram_file, length_counts_file):
+def plot_histogram(bam_file, histogram_file):
     paired_end_lengths = []
     single_end_lengths = []
     
@@ -63,6 +64,10 @@ def plot_histogram(bam_file, histogram_file, length_counts_file):
     plt.savefig(histogram_file)
     plt.close()
     
+    # Generate the length_counts_file name
+    base, ext = os.path.splitext(histogram_file)
+    length_counts_file = f"{base}_read_length_counts.txt"
+    
     # Output length counts to a file
     with open(length_counts_file, "w") as f:
         f.write("Length\tSingle-End Count\tPaired-End Count\n")
@@ -75,5 +80,4 @@ def plot_histogram(bam_file, histogram_file, length_counts_file):
 if __name__ == "__main__":
     bam_file = sys.argv[1]
     histogram_file = sys.argv[2]
-    length_counts_file = sys.argv[3]
-    plot_histogram(bam_file, histogram_file, length_counts_file)
+    plot_histogram(bam_file, histogram_file)

@@ -1,7 +1,15 @@
 # Rule for masking converted bases in BAM files
 rule mask_converted_bases:
     input:
-        "{output_path}/{sample}/04_deduplicate_bam/{sample}_sd.bam",  # Input deduplicated BAM file
+        sd_bam=lambda wildcards: (
+            "{output_path}/{sample}/04_deduplicate_bam/{sample}_consensus_merged_and_sorted_se_pe_duplex.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+            if "umi_len" in D_sample_details[wildcards.sample]
+            else "{output_path}/{sample}/04_deduplicate_bam/{sample}_dedup_merged_and_sorted_se_pe.bam".format(
+                output_path=wildcards.output_path, sample=wildcards.sample
+            )
+        ),
     output:
         # Output BAM files and their index files after calmd and masking
         calmd_bam="{output_path}/{sample}/06_call_variants/{sample}_sd_calmd.bam",
@@ -32,7 +40,7 @@ rule mask_converted_bases:
         "mkdir -p {wildcards.output_path}/{wildcards.sample}/06_call_variants/vcfs \n\n"
 
         # Command to perform calmd operation using samtools, effectively recalibrating the MD and NM tags in BAM files
-        "samtools calmd -b {input} {params.genome_fa} -@ {params.parallel} "
+        "samtools calmd -b {input.sd_bam} {params.genome_fa} -@ {params.parallel} "
         "1> {output.calmd_bam} 2>> /dev/null \n\n"
 
         # Index the calmd BAM file

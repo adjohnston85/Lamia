@@ -22,7 +22,6 @@ localrules: \
     transfer_ref_genome, \
     softlink_fastq, \
     picard_metrics, \
-    bismark2report, \
     merge_fastq, \
     calculate_stats, \
 
@@ -68,8 +67,9 @@ onsuccess:
         # Check if rsync path is provided in the config
         if "rsync" in config:
             rsync_path = config["rsync"]
-            perform_cleanup_if_needed()
-            perform_rsync_if_needed()
+            if rsync_check and not os.path.exists(rsync_check):
+                perform_cleanup_if_needed()
+                perform_rsync(sample, output_path, rsync_path)
         # Perform cleanup if the cleanup flag is set and the file does not exist
         elif cleanup_check:
             perform_cleanup_if_needed()
@@ -105,8 +105,8 @@ Rules:
         merge_fastq             - merges r1 fastqs together and r2 fastqs together
 
     03_align_fastq.smk:
-        bismark_align           - aligns fastq sequences using Bismark to produce a BAM file
-        sort_bam                - sorts BAM file produced by Bismark
+        bismark_align           - aligns fastq sequences using Bismark to produce BAM files
+        sort_bam                - merges and sorts BAM files using samtools
         fix_mate_information    - fixes mate information in BAM files using Picard
         umi_extraction_to_rx    - extracts UMIs from BAM and adds them to the RX tag
         filter_non_conversion   - filters non-conversion reads from BAM
@@ -121,6 +121,8 @@ Rules:
         convert_bam_to_fastq_pair - converts BAM to paired-end fastq files
         bismark_realign         - realigns converted fastq files using Bismark
         clip_bam                - clips overlapping reads in BAM files
+        merge_se_pe_bams        - merges single-end and paired-end BAM files
+        duplex_methylation_processing - processes duplex methylation data
 
     05_call_methylation.smk:
         call_methylation        - calls cytosine methylation using MethylDackel for downstream analysis
@@ -133,6 +135,8 @@ Rules:
         calculate_coverage      - calculates sequencing coverage statistics
         calculate_stats         - calculates cytosine conversion statistics
         bismark2report          - compiles multiple Bismark reports into a single HTML report
+        plot_read_length_histograms - plots read length histograms
+        plot_coverage           - plots sequencing coverage
 
     08_methylseekr_and_TDF.smk:
         methylseekr_and_TDF     - calls UMRs and LMRs with and without PMDs, produces TDF file for IGV
